@@ -1,0 +1,178 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Package.json",
+  "description": "NPM package.json file",
+  "type": "object",
+  "properties": {
+    "name": {
+      "description": "The name of the package.",
+      "type": "string"
+    },
+    "version": {
+      "description": "Version of the package.",
+      "type": "string"
+    },
+    "private": {
+      "description": "If true, the package will not be published to a package registry.",
+      "type": "boolean"
+    },
+    "scripts": {
+      "description": "Scripts to run at various points in the package lifecycle.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "dependencies": {
+      "description": "Dependencies of the package.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "devDependencies": {
+      "description": "Development dependencies of the package.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "peerDependencies": {
+      "description": "Peer dependencies of the package.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "optionalDependencies": {
+      "description": "Optional dependencies of the package.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "engines": {
+      "description": "Engines that this package runs on.",
+      "type": "object",
+      "properties": {
+        "node": {
+          "type": "string"
+        },
+        "npm": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "browserslist": {
+      "description": "Browsers that this package supports.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "main": {
+      "description": "The entry point of the package.",
+      "type": "string"
+    },
+    "module": {
+      "description": "The ES module entry point of the package.",
+      "type": "string"
+    },
+    "types": {
+      "description": "The TypeScript types definition file.",
+      "type": "string"
+    },
+    "typings": {
+      "description": "The TypeScript types definition file (alias for types).",
+      "type": "string"
+    },
+    "files": {
+      "description": "Files to include in the package.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "keywords": {
+      "description": "Keywords related to the package.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "author": {
+      "description": "Author of the package.",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "email": {
+              "type": "string"
+            },
+            "url": {
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
+    "license": {
+      "description": "License of the package.",
+      "type": "string"
+    },
+    "repository": {
+      "description": "Repository where the package code is stored.",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "url": {
+              "type": "string"
+            },
+            "directory": {
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
+    "homepage": {
+      "description": "Homepage of the package.",
+      "type": "string"
+    },
+    "bugs": {
+      "description": "Issue tracker for the package.",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string"
+            },
+            "email": {
+              "type": "string"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

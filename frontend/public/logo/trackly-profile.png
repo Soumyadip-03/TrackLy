@@ -1,0 +1,14 @@
+// This is a placeholder for the trackly-profile.png file
+// You'll need to convert the SVG logo to PNG format manually and place it here
+// Use an online converter or tool like ImageMagick to convert SVG to PNG
+// Recommended size: 512x512 pixels 
+
+// To create your profile image from the new animated logo:
+// 1. Take a static screenshot of the SVG logo (or export a static version)
+// 2. Use an online converter like https://convertio.co/svg-png/
+// 3. Select the SVG file and convert to PNG format with these settings:
+//    - Size: 512x512 pixels
+//    - Transparent background: Yes
+//    - Quality: 100%
+// 4. Replace this placeholder file with the generated PNG file
+// 5. You can use this image for email profiles, app icons, and social media 
