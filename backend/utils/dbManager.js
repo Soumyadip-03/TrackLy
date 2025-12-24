@@ -37,7 +37,7 @@ exports.getUserDbConnection = async (userId) => {
     
     // Connect to the user-specific database with enhanced error handling
     const connection = mongoose.createConnection(userDbUri, {
-      serverSelectionTimeoutMS: 10000, // Increased timeout for initial connection
+      serverSelectionTimeoutMS: 10000,
       socketTimeoutMS: 45000,
       connectTimeoutMS: 10000,
       heartbeatFrequencyMS: 30000
@@ -120,6 +120,39 @@ exports.closeAllConnections = async () => {
 };
 
 /**
+ * Setup user database after successful registration or login
+ * @param {Object} user - User object with _id
+ * @returns {Promise<void>}
+ */
+exports.setupUserDatabase = async (user) => {
+  try {
+    if (!user || !user._id) {
+      throw new Error('Invalid user object');
+    }
+    
+    // Initialize the user's database
+    const { connection, models } = await exports.initializeUserDatabase(user._id);
+    
+    // Create or update UserInfo document
+    await models.UserInfo.findOneAndUpdate(
+      { mainUserId: user._id },
+      {
+        mainUserId: user._id,
+        email: user.email,
+        name: user.name,
+        studentId: user.studentId
+      },
+      { upsert: true, new: true }
+    );
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Error setting up user database:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
  * Initialize the user's database with required collections/schemas
  * @param {string} userId - The user's ID
  * @returns {Promise<void>}
@@ -127,12 +160,49 @@ exports.closeAllConnections = async () => {
 exports.initializeUserDatabase = async (userId) => {
   const connection = await exports.getUserDbConnection(userId);
   
-  // Define the models specific to this user's database
-  const Todo = connection.model('Todo', require('../models/Todo').schema);
-  const Attendance = connection.model('Attendance', require('../models/Attendance').schema);
-  const Subject = connection.model('Subject', require('../models/Subject').schema);
-  const Notification = connection.model('Notification', require('../models/Notification').schema);
-  const ProjectVersion = connection.model('ProjectVersion', require('../models/ProjectVersion').schema);
+  // Check if models already exist on this connection
+  let Todo, Attendance, Subject, Notification, ProjectVersion, UserInfo;
+  
+  try {
+    Todo = connection.model('Todo');
+  } catch (e) {
+    Todo = connection.model('Todo', require('../models/Todo').schema);
+  }
+  
+  try {
+    Attendance = connection.model('Attendance');
+  } catch (e) {
+    Attendance = connection.model('Attendance', require('../models/Attendance').schema);
+  }
+  
+  try {
+    Subject = connection.model('Subject');
+  } catch (e) {
+    Subject = connection.model('Subject', require('../models/Subject').schema);
+  }
+  
+  try {
+    Notification = connection.model('Notification');
+  } catch (e) {
+    const NotificationSchema = new mongoose.Schema({
+      user: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+      },
+      title: String,
+      message: String,
+      type: String,
+      read: { type: Boolean, default: false },
+      createdAt: { type: Date, default: Date.now }
+    });
+    Notification = connection.model('Notification', NotificationSchema);
+  }
+  
+  try {
+    ProjectVersion = connection.model('ProjectVersion');
+  } catch (e) {
+    ProjectVersion = connection.model('ProjectVersion', require('../models/ProjectVersion').schema);
+  }
   
   // Create a UserInfo collection to store a reference to the main user
   const UserInfoSchema = new mongoose.Schema({
@@ -199,13 +269,34 @@ exports.initializeUserDatabase = async (userId) => {
         default: Date.now
       }
     }],
+    loginHistory: [{
+      timestamp: Date,
+      ipAddress: String,
+      userAgent: String,
+      deviceInfo: Object
+    }],
+    emailHistory: [{
+      type: String,
+      subject: String,
+      sentAt: Date,
+      status: String
+    }],
+    accountActivity: [{
+      action: String,
+      timestamp: Date,
+      details: Object
+    }],
     createdAt: {
       type: Date,
       default: Date.now
     }
   });
   
-  const UserInfo = connection.model('UserInfo', UserInfoSchema);
+  try {
+    UserInfo = connection.model('UserInfo');
+  } catch (e) {
+    UserInfo = connection.model('UserInfo', UserInfoSchema);
+  }
   
   return {
     connection,
@@ -218,4 +309,4 @@ exports.initializeUserDatabase = async (userId) => {
       UserInfo
     }
   };
-}; 
+};

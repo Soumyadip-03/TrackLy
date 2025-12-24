@@ -16,9 +16,9 @@ export default function AuthLayout({
   const { theme, setTheme } = useTheme()
 
   return (
-    <div className="flex min-h-screen flex-col bg-gradient-to-br from-background via-background to-background/95">
+    <div className="flex h-screen flex-col bg-gradient-to-br from-background via-background to-background/95 overflow-hidden">
       {/* Header */}
-      <header className="border-b border-border/40 backdrop-blur-sm">
+      <header className="border-b border-border/40 backdrop-blur-sm flex-shrink-0">
         <div className="container flex h-16 items-center justify-between px-4 md:px-6">
           <Link href="/" className="flex items-center gap-2">
             <div className="relative">
@@ -48,15 +48,15 @@ export default function AuthLayout({
       </header>
 
       {/* Main */}
-      <main className="flex-1 container px-4 md:px-6">
-        <div className="grid lg:grid-cols-2 min-h-[calc(100vh-4rem)]">
+      <main className="flex-1 container px-4 md:px-6 overflow-hidden">
+        <div className="grid lg:grid-cols-2 h-full">
           {/* Left side: Auth forms */}
-          <div className="flex flex-col justify-center py-12">
+          <div className="flex flex-col justify-center items-center overflow-hidden">
             {children}
           </div>
           
           {/* Right side: Illustration */}
-          <div className="hidden lg:flex items-center justify-center p-12 relative bg-muted/40 rounded-l-3xl shadow-inner">
+          <div className="hidden lg:flex items-center justify-center p-12 relative bg-muted/40 rounded-l-3xl shadow-inner overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-purple-500/5 to-background/5 rounded-l-3xl" />
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
@@ -71,7 +71,6 @@ export default function AuthLayout({
                 height={500}
                 className="drop-shadow-xl"
                 onError={(e) => {
-                  // Fallback if image is not found
                   e.currentTarget.style.display = 'none'
                 }}
               />
@@ -88,11 +87,11 @@ export default function AuthLayout({
       </main>
       
       {/* Footer */}
-      <footer className="border-t border-border/40">
+      <footer className="border-t border-border/40 flex-shrink-0">
         <div className="container px-4 md:px-6 py-4 text-center text-sm text-muted-foreground">
           © {new Date().getFullYear()} TrackLy. All rights reserved.
         </div>
       </footer>
     </div>
   )
-} 
+}

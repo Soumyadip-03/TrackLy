@@ -7,7 +7,7 @@ const passport = require('passport');
 const User = require('../models/User');
 const Notification = require('../models/Notification');
 const { protect } = require('../middleware/auth');
-const { setupUserDatabase, initializeUserDatabase } = require('../middleware/userDb');
+const { setupUserDatabase, initializeUserDatabase } = require('../utils/dbManager');
 const emailService = require('../utils/emailService');
 const sendWelcomeEmail = require('../utils/sendWelcomeEmail');
 
@@ -188,10 +188,20 @@ router.post(
         });
       }
 
+      // Verify password field exists
+      if (!user.password) {
+        console.error('Password field missing for user:', email);
+        return res.status(401).json({
+          success: false,
+          error: 'Invalid credentials'
+        });
+      }
+
       // Check if password matches
       const isMatch = await user.matchPassword(password);
 
       if (!isMatch) {
+        console.warn('Password mismatch for user:', email);
         return res.status(401).json({
           success: false,
           error: 'Invalid credentials'

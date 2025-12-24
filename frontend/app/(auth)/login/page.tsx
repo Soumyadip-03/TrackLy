@@ -8,15 +8,16 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "sonner"
-import { AlertCircle, CheckCircle } from "lucide-react"
+import { AlertCircle, CheckCircle, Eye, EyeOff } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 export default function LoginPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { signIn } = useAuth()
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
+  const [email, setEmail] = useState("example@gmail.com")
+  const [password, setPassword] = useState("password123")
+  const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [statusMessage, setStatusMessage] = useState<{
     type: "success" | "error" | "info"
@@ -97,14 +98,14 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="container flex items-center justify-center min-h-screen py-10">
+    <div className="container flex items-center justify-center h-screen py-0">
       <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Welcome Back</CardTitle>
-          <CardDescription>Sign in to your TrackLy account</CardDescription>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg">Welcome Back</CardTitle>
+          <CardDescription className="text-sm">Sign in to your TrackLy account</CardDescription>
         </CardHeader>
         <form onSubmit={handleLogin}>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-3 max-h-[calc(100vh-280px)] overflow-y-auto">
             {statusMessage && (
               <Alert variant={statusMessage.type === "error" ? "destructive" : "default"} className={statusMessage.type === "success" ? "bg-green-50 text-green-800 border-green-500" : ""} >
                 {statusMessage.type === "error" && (
@@ -113,16 +114,16 @@ export default function LoginPage() {
                 {statusMessage.type === "success" && (
                   <CheckCircle className="h-4 w-4" />
                 )}
-                <AlertTitle>
+                <AlertTitle className="text-xs">
                   {statusMessage.type === "error" ? "Error" : statusMessage.type === "success" ? "Success" : "Info"}
                 </AlertTitle>
-                <AlertDescription>
+                <AlertDescription className="text-xs">
                   {statusMessage.message}
                 </AlertDescription>
               </Alert>
             )}
-            <div className="space-y-2">
-              <label htmlFor="email" className="text-sm font-medium">
+            <div className="space-y-1">
+              <label htmlFor="email" className="text-xs font-medium">
                 Email
               </label>
               <Input
@@ -130,41 +131,52 @@ export default function LoginPage() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="Enter your email"
+                placeholder="example@gmail.com"
                 required
+                className="h-8 text-sm"
               />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1">
               <div className="flex items-center justify-between">
-                <label htmlFor="password" className="text-sm font-medium">
+                <label htmlFor="password" className="text-xs font-medium">
                   Password
                 </label>
                 <Link 
                   href="/forgot-password" 
-                  className="text-sm text-primary hover:underline"
+                  className="text-xs text-primary hover:underline"
                 >
-                  Forgot password?
+                  Forgot?
                 </Link>
               </div>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your password"
-                required
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="password123"
+                  required
+                  className="h-8 text-sm"
+                />
+                <button
+                  type="button"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-800"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                </button>
+              </div>
             </div>
           </CardContent>
-          <CardFooter className="flex flex-col space-y-4">
+          <CardFooter className="flex flex-col space-y-2 pt-2 pb-3">
             <Button 
               type="submit" 
-              className="w-full"
+              className="w-full h-8 text-sm"
               disabled={isLoading}
             >
               {isLoading ? "Signing in..." : "Sign In"}
             </Button>
-            <p className="text-sm text-center text-muted-foreground">
+            <p className="text-xs text-center text-muted-foreground">
               Don't have an account?{" "}
               <Link href="/register" className="text-primary hover:underline">
                 Sign up

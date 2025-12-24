@@ -40,7 +40,7 @@ export type AuthContextType = {
   connectionError: string | null
   isOfflineMode: boolean
   signIn: (email: string, password: string) => Promise<any>
-  signUp: (email: string, password: string) => Promise<any>
+  signUp: (email: string, password: string, name?: string, studentId?: string, currentSemester?: number) => Promise<any>
   signOut: () => Promise<void>
   checkConnection: () => Promise<boolean>
   enableOfflineMode: () => void
@@ -192,19 +192,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     initializeAuth()
   }, [checkConnection])
 
-  const signUp = async (email: string, password: string) => {
+  const signUp = async (email: string, password: string, name?: string, studentId?: string, currentSemester?: number) => {
     try {
       setIsLoading(true)
       const response = await fetch(`${API_URL}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ 
+          email, 
+          password,
+          name: name || email.split('@')[0],
+          studentId: studentId || 'STU' + Date.now(),
+          currentSemester: currentSemester || 1
+        })
       })
       
       const data = await response.json()
       
       if (!response.ok) {
-        throw new Error(data.message || 'Registration failed')
+        throw new Error(data.message || data.error || 'Registration failed')
+      }
+      
+      if (data.token) {
+        const userData = data.user || { 
+          _id: '', 
+          email,
+          name: name || email.split('@')[0],
+          studentId: studentId || 'STU' + Date.now(),
+          currentSemester: currentSemester || 1
+        }
+        persistSession(data.token, userData)
+        setUser(userData)
+        setIsAuthenticated(true)
+        initializeUserData()
       }
       
       return { success: true, data }
@@ -228,12 +248,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const data = await response.json()
       
       if (!response.ok) {
-        return { success: false, error: data.message || 'Login failed' }
+        return { success: false, error: data.message || data.error || 'Login failed' }
       }
       
-      if (data.token && data.user) {
-        persistSession(data.token, data.user)
-        setUser(data.user)
+      if (data.token) {
+        // Fetch user data after successful login
+        const userResponse = await fetch(`${API_URL}/auth/me`, {
+          headers: { 'Authorization': `Bearer ${data.token}` }
+        })
+        
+        const userData = await userResponse.json()
+        const user = userData.data || userData
+        
+        persistSession(data.token, user)
+        setUser(user)
         setIsAuthenticated(true)
         initializeUserData()
         return { success: true }

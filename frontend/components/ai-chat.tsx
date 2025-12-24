@@ -3,6 +3,7 @@
 import type React from "react"
 
 import { useState, useRef, useEffect } from "react"
+import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -18,6 +19,9 @@ type Message = {
 }
 
 export function AIChat() {
+  const pathname = usePathname()
+  const isAuthPage = pathname?.startsWith("/(auth)") || pathname?.includes("/login") || pathname?.includes("/register")
+  
   const [isOpen, setIsOpen] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
   const [messages, setMessages] = useState<Message[]>([
@@ -163,6 +167,8 @@ export function AIChat() {
   const toggleExpand = () => {
     setIsExpanded((prev) => !prev)
   }
+
+  if (isAuthPage) return null
 
   return (
     <>

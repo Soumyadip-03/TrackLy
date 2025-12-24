@@ -13,7 +13,6 @@ const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const userUploadsDir = path.join('uploads', 'schedules', req.user.id.toString());
     
-    // Create directory if it doesn't exist
     if (!fs.existsSync(userUploadsDir)) {
       fs.mkdirSync(userUploadsDir, { recursive: true });
     }
@@ -21,12 +20,10 @@ const storage = multer.diskStorage({
     cb(null, userUploadsDir);
   },
   filename: (req, file, cb) => {
-    // Use timestamp + original filename to ensure uniqueness
     cb(null, `${Date.now()}-${file.originalname}`);
   }
 });
 
-// Filter for PDF files
 const fileFilter = (req, file, cb) => {
   if (file.mimetype === 'application/pdf') {
     cb(null, true);
@@ -39,9 +36,79 @@ const upload = multer({
   storage,
   fileFilter,
   limits: {
-    fileSize: 5 * 1024 * 1024 // 5MB limit
+    fileSize: 5 * 1024 * 1024
   }
 });
+
+// Set up storage for profile pictures
+const profilePictureStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const profileDir = path.join('uploads', 'profiles');
+    if (!fs.existsSync(profileDir)) {
+      fs.mkdirSync(profileDir, { recursive: true });
+    }
+    cb(null, profileDir);
+  },
+  filename: (req, file, cb) => {
+    cb(null, `${req.user.id}-${Date.now()}${path.extname(file.originalname)}`);
+  }
+});
+
+const profilePictureFilter = (req, file, cb) => {
+  if (file.mimetype.startsWith('image/')) {
+    cb(null, true);
+  } else {
+    cb(new Error('Only image files are allowed'), false);
+  }
+};
+
+const uploadProfilePicture = multer({
+  storage: profilePictureStorage,
+  fileFilter: profilePictureFilter,
+  limits: {
+    fileSize: 2 * 1024 * 1024
+  }
+});
+
+// @desc    Upload profile picture
+// @route   POST /api/user/profile-picture
+// @access  Private
+router.post(
+  '/profile-picture',
+  protect,
+  uploadProfilePicture.single('profilePicture'),
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          error: 'Please upload an image file'
+        });
+      }
+
+      const { filename } = req.file;
+      const profilePicturePath = `/uploads/profiles/${filename}`;
+
+      const user = await User.findByIdAndUpdate(
+        req.user.id,
+        { profilePicture: profilePicturePath },
+        { new: true }
+      );
+
+      res.status(200).json({
+        success: true,
+        profilePicture: profilePicturePath,
+        data: user
+      });
+    } catch (err) {
+      console.error(err.message);
+      res.status(500).json({
+        success: false,
+        error: 'Server error uploading profile picture'
+      });
+    }
+  }
+);
 
 // @desc    Update user profile
 // @route   PUT /api/user/profile
@@ -62,20 +129,17 @@ router.put(
     try {
       const { name, currentSemester, profilePicture } = req.body;
       
-      // Build user object
       const userFields = {};
       if (name) userFields.name = name;
       if (currentSemester) userFields.currentSemester = currentSemester;
       if (profilePicture) userFields.profilePicture = profilePicture;
 
-      // Update user
       const user = await User.findByIdAndUpdate(
         req.user.id,
         { $set: userFields },
         { new: true }
       );
 
-      // Also update user info in the user-specific database
       if (name) {
         await updateUserInfo({
           _id: req.user.id,
@@ -115,10 +179,8 @@ router.post(
         });
       }
 
-      // Get file information
       const { filename, originalname, path: filePath, size } = req.file;
 
-      // Update user with PDF schedule information
       const user = await User.findByIdAndUpdate(
         req.user.id,
         {
@@ -134,7 +196,6 @@ router.post(
         { new: true }
       );
 
-      // Store schedule information in user-specific database
       await req.userDb.models.UserInfo.findOneAndUpdate(
         { mainUserId: req.user._id },
         {
@@ -185,7 +246,6 @@ router.get('/schedule/pdf', protect, async (req, res) => {
       });
     }
 
-    // Check if file exists
     if (!fs.existsSync(user.pdfSchedule.path)) {
       return res.status(404).json({
         success: false,
@@ -217,7 +277,6 @@ router.get('/schedule/pdf', protect, async (req, res) => {
 // @access  Private
 router.get('/schedule/pdf/download', protect, async (req, res) => {
   try {
-    // Get schedule info from user-specific database
     const userInfo = await req.userDb.models.UserInfo.findOne(
       { mainUserId: req.user._id },
       { 'pdfSchedule': 1 }
@@ -230,7 +289,6 @@ router.get('/schedule/pdf/download', protect, async (req, res) => {
       });
     }
 
-    // Check if file exists
     if (!fs.existsSync(userInfo.pdfSchedule.path)) {
       return res.status(404).json({
         success: false,
@@ -238,7 +296,6 @@ router.get('/schedule/pdf/download', protect, async (req, res) => {
       });
     }
 
-    // Send the file
     res.download(userInfo.pdfSchedule.path, userInfo.pdfSchedule.originalName);
   } catch (err) {
     console.error(err.message);
@@ -256,21 +313,17 @@ router.put('/points', protect, async (req, res) => {
   try {
     const { points, operation } = req.body;
 
-    // Get current user
     const user = await User.findById(req.user.id);
 
-    // Update points based on operation (add or subtract)
     if (operation === 'add') {
       user.points += points;
     } else if (operation === 'subtract') {
       user.points -= points;
-      // Make sure points don't go below 0
       if (user.points < 0) user.points = 0;
     }
 
     await user.save();
 
-    // Update points in user-specific database
     await req.userDb.models.UserInfo.findOneAndUpdate(
       { mainUserId: req.user._id },
       { $set: { points: user.points } },
@@ -295,7 +348,6 @@ router.put('/points', protect, async (req, res) => {
 // @access  Private
 router.delete('/schedule/pdf', protect, async (req, res) => {
   try {
-    // Get schedule info from user-specific database
     const userInfo = await req.userDb.models.UserInfo.findOne(
       { mainUserId: req.user._id },
       { 'pdfSchedule': 1 }
@@ -308,22 +360,18 @@ router.delete('/schedule/pdf', protect, async (req, res) => {
       });
     }
 
-    // Save the filepath to delete the actual file
     const filePath = userInfo.pdfSchedule.path;
 
-    // Update user to remove pdfSchedule from main database
     await User.findByIdAndUpdate(
       req.user.id,
       { $unset: { pdfSchedule: "" } }
     );
 
-    // Update user-specific database to remove pdfSchedule
     await req.userDb.models.UserInfo.findOneAndUpdate(
       { mainUserId: req.user._id },
       { $unset: { pdfSchedule: "" } }
     );
 
-    // Try to delete the actual file if it exists
     if (fs.existsSync(filePath)) {
       fs.unlink(filePath, (err) => {
         if (err) {
@@ -352,7 +400,6 @@ router.get('/schedule/pdf/parse', protect, async (req, res) => {
   try {
     console.log(`Attempting to parse PDF for user ${req.user.id}`);
     
-    // Get schedule info from user-specific database
     const userInfo = await req.userDb.models.UserInfo.findOne(
       { mainUserId: req.user._id },
       { 'pdfSchedule': 1 }
@@ -366,7 +413,6 @@ router.get('/schedule/pdf/parse', protect, async (req, res) => {
       });
     }
 
-    // Check if file exists
     if (!fs.existsSync(userInfo.pdfSchedule.path)) {
       console.error(`PDF file not found at path: ${userInfo.pdfSchedule.path}`);
       return res.status(404).json({
@@ -377,17 +423,14 @@ router.get('/schedule/pdf/parse', protect, async (req, res) => {
 
     try {
       console.log(`Starting PDF parsing for file: ${userInfo.pdfSchedule.path}`);
-      // Parse the schedule PDF
       const { parseSchedulePDF } = require('../utils/pdfParser');
       const scheduleItems = await parseSchedulePDF(userInfo.pdfSchedule.path);
 
-      // Mark the PDF as processed in user-specific database
       await req.userDb.models.UserInfo.findOneAndUpdate(
         { mainUserId: req.user._id },
         { 'pdfSchedule.processed': true }
       );
 
-      // Also mark the PDF as processed in main database
       await User.findByIdAndUpdate(req.user.id, { 
         'pdfSchedule.processed': true 
       });
@@ -401,7 +444,6 @@ router.get('/schedule/pdf/parse', protect, async (req, res) => {
       }
 
       console.log(`Successfully extracted ${scheduleItems.length} schedule items for user ${req.user.id}`);
-      // Return the extracted schedule information
       res.status(200).json({
         success: true,
         data: scheduleItems
@@ -440,16 +482,13 @@ router.post(
         });
       }
 
-      // Get file information
       const { path: filePath } = req.file;
       console.log(`Test PDF uploaded to: ${filePath}`);
 
       try {
-        // Parse the file directly
         const { parseSchedulePDF } = require('../utils/pdfParser');
         const scheduleItems = await parseSchedulePDF(filePath);
         
-        // Clean up the temp file
         try {
           fs.unlinkSync(filePath);
           console.log('Test PDF file removed after parsing');
@@ -457,7 +496,6 @@ router.post(
           console.error('Error cleaning up test file:', cleanupError);
         }
         
-        // Return results
         if (!scheduleItems || scheduleItems.length === 0) {
           return res.status(400).json({
             success: false,
@@ -471,7 +509,6 @@ router.post(
           message: `Successfully extracted ${scheduleItems.length} schedule items`
         });
       } catch (parseError) {
-        // Clean up the temp file even if parsing failed
         try {
           fs.unlinkSync(filePath);
           console.log('Test PDF file removed after failed parsing');
@@ -495,4 +532,4 @@ router.post(
   }
 );
 
-module.exports = router; 
+module.exports = router;

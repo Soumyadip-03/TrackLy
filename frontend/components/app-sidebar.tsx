@@ -5,20 +5,30 @@ import Link from "next/link"
 import { BarChart3, Calendar, CheckSquare, Home, Info, LogOut, Bell, User, Award, Shield, ChevronLeft, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ModeToggle } from "@/components/mode-toggle"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useState, useEffect } from "react"
 import { useAuth } from '@/lib/auth-context'
 import { toast } from "@/components/ui/use-toast"
 import { AppSettings } from "@/lib/storage-utils"
 import { ClientOnly } from "@/components/client-only"
 import { AdminBadge } from "@/components/ui/admin-badge"
-import { ConnectionStatus } from "@/components/connection-status"
+import { NetworkPanel } from "@/components/network-panel"
 
 export function AppSidebar() {
   const pathname = usePathname()
-  // Use false as default state to ensure server/client match; we'll update with localStorage in useEffect
   const [collapsed, setCollapsed] = useState(false)
   const { signOut, user } = useAuth()
   const [isAdmin, setIsAdmin] = useState(false)
+  const [profilePicture, setProfilePicture] = useState<string>("")
+
+  // Load profile picture from user data
+  useEffect(() => {
+    if (user?.profilePicture) {
+      setProfilePicture(user.profilePicture)
+    } else {
+      setProfilePicture("/logo/trackly-profile.png")
+    }
+  }, [user?.profilePicture])
 
   // Initialize collapsed state from localStorage after component mounts
   useEffect(() => {
@@ -45,23 +55,20 @@ export function AppSidebar() {
       document.documentElement.style.setProperty("--sidebar-width", "250px")
     }
     
-    // Save to localStorage
     AppSettings.saveSidebarState(collapsed)
 
-    // Cleanup function
     return () => {
       document.body.classList.remove("sidebar-collapsed")
       document.documentElement.style.setProperty("--sidebar-width", "250px")
     }
   }, [collapsed])
 
-  // Define route type with optional adminBadge property
   type RouteItem = {
-    title: string;
-    href: string;
-    icon: typeof Home;
-    adminBadge?: boolean;
-  };
+    title: string
+    href: string
+    icon: typeof Home
+    adminBadge?: boolean
+  }
   
   const routes: RouteItem[] = [
     {
@@ -106,44 +113,56 @@ export function AppSidebar() {
     },
   ]
   
-  // Create the final routes array with admin route if user is admin
   const finalRoutes = isAdmin ? [
-    ...routes.slice(0, 4), // Insert after Points
+    ...routes.slice(0, 4),
     {
       title: "Admin",
       href: "/admin",
       icon: Shield,
-      adminBadge: true // Flag to show the admin badge
+      adminBadge: true
     },
     ...routes.slice(4)
-  ] : routes;
+  ] : routes
 
   return (
     <div className="fixed inset-y-0 left-0 z-40 flex">
-      {/* Always visible sidebar */}
       <div
         className={`bg-card border-r border-border transition-all duration-300 flex flex-col ${
           collapsed ? "w-16" : "w-64"
         }`}
       >
         {/* Header */}
-        <div className="border-b p-3 flex items-center justify-center gap-2 overflow-hidden">
-          <div className="relative">
-            <div className="absolute inset-0 bg-gradient-to-r from-primary/20 to-purple-500/20 rounded-full animate-pulse-slow"></div>
+        <div className="border-b p-3 flex items-center justify-between gap-4 overflow-hidden">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
             <div className="relative">
-              <Calendar className="h-6 w-6 text-primary animate-spin-slow" />
-            </div>
-          </div>
-          <ClientOnly>
-            {!collapsed && (
-              <div className="overflow-hidden">
-                <span className="font-bold text-xl bg-gradient-to-r from-primary to-purple-500 bg-clip-text text-transparent animate-text-shimmer">
-                  TrackLy
-                </span>
-                <div className="logo-underline"></div>
+              <div className="absolute inset-0 bg-gradient-to-r from-primary/20 to-purple-500/20 rounded-full animate-pulse-slow"></div>
+              <div className="relative">
+                <Calendar className="h-6 w-6 text-primary animate-spin-slow" />
               </div>
+            </div>
+            <ClientOnly>
+              {!collapsed && (
+                <div className="overflow-hidden">
+                  <span className="font-bold text-xl bg-gradient-to-r from-primary to-purple-500 bg-clip-text text-transparent animate-text-shimmer">
+                    TrackLy
+                  </span>
+                  <div className="logo-underline"></div>
+                </div>
+              )}
+            </ClientOnly>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-muted-foreground flex-shrink-0"
+            onClick={() => setCollapsed(!collapsed)}
+          >
+            {collapsed ? (
+              <ChevronRight className="h-5 w-5" />
+            ) : (
+              <ChevronLeft className="h-5 w-5" />
             )}
-          </ClientOnly>
+          </Button>
         </div>
 
         {/* Menu */}
@@ -183,102 +202,71 @@ export function AppSidebar() {
 
         {/* Footer */}
         <div className="mt-auto border-t p-3 flex flex-col gap-2">
-          <ClientOnly>
-            <div className="flex items-center justify-between">
-              <div className={`flex items-center gap-2 ${collapsed ? "flex-col" : ""}`}>
+          {!collapsed && (
+            <ClientOnly>
+              <div className="flex items-center justify-between">
                 <ModeToggle />
-                {collapsed ? null : (
-                  <ConnectionStatus />
-                )}
+                <NetworkPanel />
               </div>
+            </ClientOnly>
+          )}
+          
+          {!collapsed && (
+            <>
+              <Button
+                variant="ghost"
+                className="w-full justify-start hover:text-red-500 transition-all duration-300 hover:bg-red-500/10 group"
+                title="Logout"
+                onClick={handleLogout}
+              >
+                <LogOut className="h-4 w-4 mr-2 group-hover:rotate-12 transition-transform duration-300" />
+                <span>Logout</span>
+              </Button>
+              
+              {user && (
+                <div className="mt-2 pt-2 border-t border-border/60 flex items-center gap-2">
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src={profilePicture} />
+                    <AvatarFallback>{user.name?.[0] || user.email?.[0] || 'U'}</AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{user.name || 'User'}</p>
+                    <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Collapsed sidebar footer icons and profile */}
+      {collapsed && (
+        <ClientOnly>
+          {user && (
+            <div className="fixed left-2 bottom-2 z-40 flex flex-col items-center gap-4">
+              <Avatar className="h-12 w-12 border-2 border-primary">
+                <AvatarImage src={profilePicture} />
+                <AvatarFallback>{user.name?.[0] || user.email?.[0] || 'U'}</AvatarFallback>
+              </Avatar>
               
               <Button
                 variant="ghost"
                 size="icon"
-                className="text-muted-foreground"
-                onClick={() => setCollapsed(!collapsed)}
+                className="text-muted-foreground hover:text-red-500 transition-all duration-300 hover:bg-red-500/10"
+                title="Logout"
+                onClick={handleLogout}
               >
-                {collapsed ? (
-                  <ChevronRight className="h-5 w-5" />
-                ) : (
-                  <ChevronLeft className="h-5 w-5" />
-                )}
+                <LogOut className="h-4 w-4" />
               </Button>
+              
+              <NetworkPanel />
+              
+              <ModeToggle />
             </div>
-            {collapsed && (
-              <div className="flex flex-col items-center gap-2 mt-2">
-                <ConnectionStatus />
-              </div>
-            )}
-          </ClientOnly>
-          
-          <Button
-            variant="ghost"
-            className={`w-full ${
-              collapsed ? "justify-center" : "justify-start"
-            } hover:text-red-500 transition-all duration-300 hover:bg-red-500/10 group`}
-            title="Logout"
-            onClick={handleLogout}
-          >
-            <LogOut className="h-4 w-4 mr-2 group-hover:rotate-12 transition-transform duration-300" />
-            {!collapsed && <span>Logout</span>}
-          </Button>
-          
-          <ClientOnly>
-            {!collapsed && user && (
-              <div className="mt-2 pt-2 border-t border-border/60 flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-medium">
-                  {user.user_metadata?.full_name?.[0] || user.email?.[0] || 'U'}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{user.user_metadata?.full_name || 'User'}</p>
-                  <p className="text-xs text-muted-foreground truncate">{user.email}</p>
-                </div>
-              </div>
-            )}
-          </ClientOnly>
-        </div>
-      </div>
-
-      {/* Toggle button */}
-      <button
-        onClick={() => setCollapsed(!collapsed)}
-        className="absolute top-3 -right-3 z-50 bg-card shadow-md border border-border rounded-full p-1 hover:bg-accent transition-all duration-300 hover:scale-110 hover:shadow-lg"
-      >
-        {collapsed ? (
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="animate-bounce-x"
-          >
-            <polyline points="13 17 18 12 13 7"></polyline>
-            <polyline points="6 17 11 12 6 7"></polyline>
-          </svg>
-        ) : (
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="animate-bounce-x"
-          >
-            <polyline points="11 17 6 12 11 7"></polyline>
-            <polyline points="18 17 13 12 18 7"></polyline>
-          </svg>
-        )}
-      </button>
+          )}
+        </ClientOnly>
+      )}
     </div>
   )
 }

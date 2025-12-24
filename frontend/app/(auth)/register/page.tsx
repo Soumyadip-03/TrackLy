@@ -18,6 +18,7 @@ export default function RegisterPage() {
   const { signUp } = useAuth()
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
+  const [studentId, setStudentId] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [currentSemester, setCurrentSemester] = useState<number>(1)
@@ -32,7 +33,7 @@ export default function RegisterPage() {
     setMessage(null)
 
     try {
-      if (!name || !email || !password || !confirmPassword) {
+      if (!name || !email || !studentId || !password || !confirmPassword) {
         setMessage({
           text: "Please fill in all required fields",
           type: "error",
@@ -56,7 +57,7 @@ export default function RegisterPage() {
         return
       }
 
-      await signUp(email, password)
+      await signUp(email, password, name, studentId, currentSemester)
       
       setMessage({
         text: "Account created successfully! Redirecting to login...",
@@ -88,14 +89,14 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="container flex items-center justify-center min-h-screen py-10">
+    <div className="container flex items-center justify-center h-screen py-0">
       <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Create an Account</CardTitle>
-          <CardDescription>Sign up for TrackLy to start tracking your attendance</CardDescription>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg">Create an Account</CardTitle>
+          <CardDescription className="text-sm">Sign up for TrackLy to start tracking your attendance</CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-2 max-h-[calc(100vh-240px)] overflow-y-auto">
             {message && (
               <AuthMessage
                 message={message.text}
@@ -106,37 +107,52 @@ export default function RegisterPage() {
               />
             )}
             
-            <div className="space-y-2">
-              <Label htmlFor="name">Full Name</Label>
+            <div className="space-y-1">
+              <Label htmlFor="name" className="text-xs">Full Name</Label>
               <Input
                 id="name"
                 type="text"
-                placeholder="John Doe"
+                placeholder="Your Name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
+                className="h-8 text-sm"
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+            <div className="space-y-1">
+              <Label htmlFor="email" className="text-xs">Email</Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="you@example.com"
+                placeholder="example@gmail.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                className="h-8 text-sm"
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="currentSemester">Current Semester</Label>
+            <div className="space-y-1">
+              <Label htmlFor="studentId" className="text-xs">Student ID</Label>
+              <Input
+                id="studentId"
+                type="text"
+                placeholder="STU123456"
+                value={studentId}
+                onChange={(e) => setStudentId(e.target.value)}
+                required
+                className="h-8 text-sm"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="currentSemester" className="text-xs">Current Semester</Label>
               <Select 
                 value={currentSemester.toString()} 
                 onValueChange={(value: string) => setCurrentSemester(parseInt(value))}
               >
-                <SelectTrigger className="w-full" id="currentSemester">
+                <SelectTrigger className="w-full h-8 text-sm" id="currentSemester">
                   <SelectValue placeholder="Select Semester" />
                 </SelectTrigger>
                 <SelectContent>
@@ -149,8 +165,8 @@ export default function RegisterPage() {
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+            <div className="space-y-1">
+              <Label htmlFor="password" className="text-xs">Password</Label>
               <div className="relative">
                 <Input
                   id="password"
@@ -160,19 +176,20 @@ export default function RegisterPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   minLength={6}
+                  className="h-8 text-sm"
                 />
                 <button
                   type="button"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-800"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-800"
                   onClick={() => setShowPassword(!showPassword)}
                 >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
                 </button>
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirm Password</Label>
+            <div className="space-y-1">
+              <Label htmlFor="confirmPassword" className="text-xs">Confirm Password</Label>
               <div className="relative">
                 <Input
                   id="confirmPassword"
@@ -182,26 +199,27 @@ export default function RegisterPage() {
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
                   minLength={6}
+                  className="h-8 text-sm"
                 />
                 <button
                   type="button"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-800"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-800"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                 >
-                  {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  {showConfirmPassword ? <EyeOff size={14} /> : <Eye size={14} />}
                 </button>
               </div>
             </div>
           </CardContent>
-          <CardFooter className="flex flex-col space-y-4">
+          <CardFooter className="flex flex-col space-y-2 pt-2 pb-3">
             <Button 
               type="submit" 
-              className="w-full bg-gradient-to-r from-primary to-purple-500 hover:from-primary/90 hover:to-purple-500/90 text-white"
+              className="w-full h-8 text-sm bg-gradient-to-r from-primary to-purple-500 hover:from-primary/90 hover:to-purple-500/90 text-white"
               disabled={isLoading}
             >
               {isLoading ? 'Creating Account...' : 'Create Account'}
             </Button>
-            <p className="text-sm text-center text-muted-foreground">
+            <p className="text-xs text-center text-muted-foreground">
               Already have an account?{' '}
               <Link href="/login" className="text-primary hover:underline">
                 Sign in

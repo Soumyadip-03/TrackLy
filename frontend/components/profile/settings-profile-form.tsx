@@ -1,145 +1,171 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useAuth } from '@/lib/auth-context'
-import { saveToLocalStorage, getFromLocalStorage } from "@/lib/storage-utils"
 import { fetchWithAuth } from '@/lib/api'
 import { Button } from "@/components/ui/button"
-import { toast } from "@/components/ui/use-toast"
-import { Save } from "lucide-react"
+import { toast } from "sonner"
+import { Save, Camera } from "lucide-react"
 import { AdminBadge } from "@/components/ui/admin-badge"
 
 interface ProfileData {
   name: string;
   email: string;
   studentId: string;
-  currentSemester: string;
+  currentSemester: number;
+  profilePicture?: string;
 }
 
 interface ProfileFormProps {
-  onUpdateAction: (data: ProfileData) => void;
+  onUpdateAction?: (data: ProfileData) => void;
 }
 
 export function SettingsProfileForm({ onUpdateAction }: ProfileFormProps) {
   const { user } = useAuth()
+  const fileInputRef = useRef<HTMLInputElement>(null)
   
   const [profileData, setProfileData] = useState<ProfileData>({
     name: "",
     studentId: "",
     email: "",
-    currentSemester: "",
+    currentSemester: 1,
+    profilePicture: "",
   })
   const [isAdmin, setIsAdmin] = useState(false)
-  
-  const [originalData, setOriginalData] = useState<ProfileData | null>(null)
-  const [hasChanges, setHasChanges] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  const [hasChanges, setHasChanges] = useState(false)
+  const [originalSemester, setOriginalSemester] = useState(1)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string>("")
 
-  // Load user profile data
+  // Load user profile data from backend
   useEffect(() => {
-    const savedProfile = getFromLocalStorage<ProfileData>('user_profile', {
-      name: "",
-      email: user?.email || "",
-      studentId: "",
-      currentSemester: "1"
-    });
-    
-    const initialData = {
-      ...savedProfile,
-      email: user?.email || savedProfile.email || ""
-    };
-    
-    setProfileData(initialData);
-    setOriginalData(initialData);
-    
-    // Check if user has admin role
-    const checkAdminStatus = async () => {
-      if (!user) return;
+    const loadProfile = async () => {
+      if (!user) {
+        setIsLoading(false)
+        return
+      }
       
       try {
         const response = await fetchWithAuth('/auth/me');
         if (response.ok) {
-          const data = await response.json();
+          const result = await response.json();
+          const data = result.data || result;
+          
+          setProfileData({
+            name: data.name || "",
+            email: data.email || "",
+            studentId: data.studentId || "",
+            currentSemester: data.currentSemester || 1,
+            profilePicture: data.profilePicture || "",
+          });
+          
+          setOriginalSemester(data.currentSemester || 1);
+          
           if (data.role === 'admin') {
             setIsAdmin(true);
           }
         }
       } catch (error) {
-        console.error('Error checking admin status:', error);
+        console.error('Error loading profile:', error);
+        toast.error('Failed to load profile');
+      } finally {
+        setIsLoading(false);
       }
     };
     
-    checkAdminStatus();
-    
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    loadProfile();
   }, [user]);
 
-  // Check for changes in profile data
+  // Check if semester has changed
   useEffect(() => {
-    if (originalData) {
-      const changed = 
-        originalData.name !== profileData.name ||
-        originalData.email !== profileData.email ||
-        originalData.studentId !== profileData.studentId ||
-        originalData.currentSemester !== profileData.currentSemester;
-      
-      setHasChanges(changed);
-    }
-  }, [profileData, originalData]);
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target
-    setProfileData(prev => ({ ...prev, [name]: value }));
-  }
+    setHasChanges(profileData.currentSemester !== originalSemester || selectedFile !== null);
+  }, [profileData.currentSemester, originalSemester, selectedFile]);
 
   const handleSemesterChange = (value: string) => {
-    setProfileData(prev => ({ ...prev, currentSemester: value }));
-  }
-  
+    setProfileData(prev => ({ ...prev, currentSemester: parseInt(value) }));
+  };
+
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setSelectedFile(file);
+      
+      // Create preview URL
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPreviewUrl(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleSaveChanges = async () => {
     setIsSaving(true);
     
     try {
-      // Save to localStorage
-      saveToLocalStorage('user_profile', profileData);
-      
-      // Update original data to reflect saved state
-      setOriginalData({...profileData});
-      
-      // Notify parent component
-      onUpdateAction(profileData);
-      
-      // Dispatch events for other components
-      if (originalData?.currentSemester !== profileData.currentSemester) {
-        window.dispatchEvent(new CustomEvent('semesterChanged', { 
-          detail: { semester: profileData.currentSemester }
-        }));
+      // Upload profile picture if selected
+      if (selectedFile) {
+        const formData = new FormData();
+        formData.append('profilePicture', selectedFile);
+        
+        const token = localStorage.getItem('trackly_token');
+        const response = await fetch('http://localhost:5000/api/user/profile-picture', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          },
+          body: formData
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to upload profile picture');
+        }
+
+        const result = await response.json();
+        setProfileData(prev => ({ ...prev, profilePicture: result.profilePicture }));
+        setSelectedFile(null);
+        setPreviewUrl("");
       }
-      
-      window.dispatchEvent(new CustomEvent('settingsUpdated'));
-      
-      toast({
-        title: "Profile Saved",
-        description: "Your profile information has been updated successfully."
+
+      // Update semester
+      const response = await fetchWithAuth('/user/profile', {
+        method: 'PUT',
+        body: JSON.stringify({
+          currentSemester: profileData.currentSemester,
+        })
       });
-      
-      setHasChanges(false);
+
+      if (response.ok) {
+        setOriginalSemester(profileData.currentSemester);
+        setHasChanges(false);
+        toast.success('Profile updated successfully');
+        onUpdateAction?.(profileData);
+      } else {
+        toast.error('Failed to save changes');
+      }
     } catch (error) {
       console.error("Error saving profile:", error);
-      toast({
-        title: "Save Failed",
-        description: "There was a problem saving your profile information.",
-        variant: "destructive"
-      });
+      toast.error('Error saving changes');
     } finally {
       setIsSaving(false);
     }
   };
+
+  if (isLoading) {
+    return <Card><CardContent className="pt-6">Loading profile...</CardContent></Card>;
+  }
 
   return (
     <Card>
@@ -155,48 +181,85 @@ export function SettingsProfileForm({ onUpdateAction }: ProfileFormProps) {
           </CardTitle>
         </div>
         <CardDescription>
-          Update your personal information and how others see you on the platform
+          Your signup credentials are fixed. You can change your profile picture and semester.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="name">Full Name</Label>
-          <Input id="name" name="name" value={profileData.name || ""} onChange={handleChange} />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
-          <Input 
-            id="email" 
-            name="email" 
-            type="email" 
-            value={profileData.email || ""} 
-            onChange={handleChange} 
-            disabled 
-            className="bg-muted/50"
+      <CardContent className="space-y-6">
+        {/* Profile Picture Section */}
+        <div className="flex justify-center">
+          <div className="relative group cursor-pointer" onClick={handleAvatarClick}>
+            <Avatar className="h-32 w-32">
+              <AvatarImage src={previewUrl || profileData.profilePicture || undefined} />
+              <AvatarFallback className="text-2xl">{profileData.name?.charAt(0) || user?.email?.charAt(0)}</AvatarFallback>
+            </Avatar>
+            <div className="absolute inset-0 bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+              <Camera className="h-8 w-8 text-white" />
+            </div>
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleFileChange}
+            className="hidden"
           />
-          <p className="text-xs text-muted-foreground">Email cannot be changed</p>
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="studentId">Student ID</Label>
-          <Input id="studentId" name="studentId" value={profileData.studentId || ""} onChange={handleChange} />
-        </div>
+        {/* Fixed Fields */}
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="name">Full Name</Label>
+            <Input 
+              id="name" 
+              value={profileData.name || ""} 
+              disabled 
+              className="bg-muted/50 cursor-not-allowed"
+            />
+            <p className="text-xs text-muted-foreground">Set during signup - cannot be changed</p>
+          </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="currentSemester">Current Semester</Label>
-          <Select value={profileData.currentSemester || "1"} onValueChange={handleSemesterChange}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select semester" />
-            </SelectTrigger>
-            <SelectContent>
-              {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => (
-                <SelectItem key={sem} value={sem.toString()}>
-                  Semester {sem}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="space-y-2">
+            <Label htmlFor="email">Email</Label>
+            <Input 
+              id="email" 
+              type="email" 
+              value={profileData.email || ""} 
+              disabled 
+              className="bg-muted/50 cursor-not-allowed"
+            />
+            <p className="text-xs text-muted-foreground">Set during signup - cannot be changed</p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="studentId">Student ID</Label>
+            <Input 
+              id="studentId" 
+              value={profileData.studentId || ""} 
+              disabled 
+              className="bg-muted/50 cursor-not-allowed"
+            />
+            <p className="text-xs text-muted-foreground">Set during signup - cannot be changed</p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="currentSemester">Current Semester</Label>
+            <Select 
+              value={profileData.currentSemester.toString()} 
+              onValueChange={handleSemesterChange}
+            >
+              <SelectTrigger id="currentSemester">
+                <SelectValue placeholder="Select semester" />
+              </SelectTrigger>
+              <SelectContent>
+                {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => (
+                  <SelectItem key={sem} value={sem.toString()}>
+                    Semester {sem}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">You can change your current semester</p>
+          </div>
         </div>
       </CardContent>
       <CardFooter className="flex justify-end border-t p-4">

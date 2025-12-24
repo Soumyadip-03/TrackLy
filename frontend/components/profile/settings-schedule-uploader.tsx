@@ -71,9 +71,11 @@ export function SettingsScheduleUploader({ onUpdateAction }: ScheduleUploaderPro
     const savedSchedule = getFromLocalStorage<ScheduleData>('schedule', { classes: [] });
     const savedOffDays = getFromLocalStorage<string[]>('schedule_off_days', []);
     const savedSubjects = getFromLocalStorage<any[]>('subjects', []);
-    setSchedule(savedSchedule);
-    setOffDays(savedOffDays);
-    setSubjects(savedSubjects.map(s => ({ name: s.name, classType: s.classType || "none" })));
+    
+    // Ensure schedule is always an array, never undefined
+    setSchedule(savedSchedule && savedSchedule.classes ? savedSchedule : { classes: [] });
+    setOffDays(Array.isArray(savedOffDays) ? savedOffDays : []);
+    setSubjects(Array.isArray(savedSubjects) ? savedSubjects.map(s => ({ name: s.name, classType: s.classType || "none" })) : []);
   }, []);
 
   // Update parent when schedule or off days change
