@@ -4,10 +4,16 @@ const { body, validationResult } = require('express-validator');
 const OpenAI = require('openai');
 const { protect } = require('../middleware/auth');
 
-// Initialize OpenAI with API key
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+// Initialize OpenAI lazily (only when API key is available)
+let openai = null;
+function getOpenAIClient() {
+  if (!openai && process.env.OPENAI_API_KEY) {
+    openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY
+    });
+  }
+  return openai;
+}
 
 /**
  * Generate a fallback response based on the user's message
@@ -102,7 +108,11 @@ router.post(
 
       // Try to call OpenAI API
       try {
-        const completion = await openai.chat.completions.create({
+        const openaiClient = getOpenAIClient();
+        if (!openaiClient) {
+          throw new Error('OpenAI API key not configured');
+        }
+        const completion = await openaiClient.chat.completions.create({
           model: 'gpt-3.5-turbo',
           messages,
           max_tokens: 600
