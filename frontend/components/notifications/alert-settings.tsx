@@ -125,7 +125,7 @@ export function AlertSettings() {
 
   const [settings, setSettings] = useState<NotificationSettings>(defaultSettings);
   const [isSaving, setIsSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState("general");
+  const [activeTab, setActiveTab] = useState("academic");
   const [userEmail, setUserEmail] = useState<string>("");
 
   // Load saved settings and user data on component mount
@@ -287,78 +287,13 @@ export function AlertSettings() {
       </CardHeader>
       <CardContent>
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="grid grid-cols-4 mb-4">
-            <TabsTrigger value="general">General</TabsTrigger>
+          <TabsList className="grid grid-cols-3 mb-4">
             <TabsTrigger value="academic">Academic</TabsTrigger>
             <TabsTrigger value="delivery">Delivery</TabsTrigger>
             <TabsTrigger value="advanced">Advanced</TabsTrigger>
           </TabsList>
           
-          {/* General Tab */}
-          <TabsContent value="general" className="space-y-4">
-            <div className="space-y-4">
-              <h3 className="text-sm font-medium">Basic Settings</h3>
-              
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label htmlFor="notification-sound">Notification Sound</Label>
-                  <p className="text-xs text-muted-foreground">Play a sound when notifications arrive</p>
-                </div>
-                <Switch
-                  id="notification-sound"
-                  checked={settings.notificationSound}
-                  onCheckedChange={() => handleSwitchChange("notificationSound")}
-                />
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label htmlFor="login-notification-sound">Login Sound</Label>
-                  <p className="text-xs text-muted-foreground">Play a sound when you log in</p>
-                </div>
-                <Switch
-                  id="login-notification-sound"
-                  checked={settings.loginNotificationSound !== false}
-                  onCheckedChange={() => handleSwitchChange("loginNotificationSound")}
-                />
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label htmlFor="browser-notifications">Browser Notifications</Label>
-                  <p className="text-xs text-muted-foreground">Show desktop notifications</p>
-                </div>
-                <Switch
-                  id="browser-notifications"
-                  checked={settings.browserNotifications}
-                  onCheckedChange={() => handleSwitchChange("browserNotifications")}
-                />
-              </div>
-              
-              <div className="space-y-2 border-t pt-4">
-                <Label>Priority Level</Label>
-                <p className="text-xs text-muted-foreground mb-2">Choose which priority levels to show</p>
-                
-                <RadioGroup 
-                  value={settings.notificationPriority} 
-                  onValueChange={(value) => handleSelectChange("notificationPriority", value)}
-                >
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="all" id="priority-all" />
-                    <Label htmlFor="priority-all">All Notifications</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="high" id="priority-high" />
-                    <Label htmlFor="priority-high">High Priority Only</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="medium" id="priority-medium" />
-                    <Label htmlFor="priority-medium">Medium Priority & Above</Label>
-                  </div>
-                </RadioGroup>
-              </div>
-            </div>
-          </TabsContent>
+          {/* General Tab - REMOVED */}
           
           {/* Academic Tab */}
           <TabsContent value="academic" className="space-y-6">

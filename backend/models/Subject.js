@@ -12,6 +12,11 @@ const SubjectSchema = new mongoose.Schema({
     required: [true, 'Please provide a subject code'],
     trim: true
   },
+  classType: {
+    type: String,
+    enum: ['lecture', 'lab', 'tutorial', 'seminar', 'workshop', 'sports', 'yoga', 'none'],
+    default: 'none'
+  },
   semester: {
     type: Number,
     required: [true, 'Please provide a semester number'],
@@ -22,6 +27,10 @@ const SubjectSchema = new mongoose.Schema({
     default: 0
   },
   attendedClasses: {
+    type: Number,
+    default: 0
+  },
+  classesPerWeek: {
     type: Number,
     default: 0
   },

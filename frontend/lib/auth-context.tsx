@@ -264,6 +264,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(user)
         setIsAuthenticated(true)
         initializeUserData()
+        
+        // Play login sound if enabled
+        const settings = getFromLocalStorage<any>('notification_settings', {})
+        if (settings.loginNotificationSound !== false) {
+          try {
+            const audioContext = new AudioContext()
+            const oscillator = audioContext.createOscillator()
+            const gainNode = audioContext.createGain()
+            oscillator.frequency.setValueAtTime(523.25, audioContext.currentTime)
+            gainNode.gain.setValueAtTime(0.15, audioContext.currentTime)
+            oscillator.connect(gainNode)
+            gainNode.connect(audioContext.destination)
+            oscillator.start()
+            gainNode.gain.exponentialRampToValueAtTime(0.00001, audioContext.currentTime + 0.6)
+            oscillator.stop(audioContext.currentTime + 0.6)
+          } catch (e) {
+            console.error('Error playing login sound:', e)
+          }
+        }
+        
         return { success: true }
       }
       

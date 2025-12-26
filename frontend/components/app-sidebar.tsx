@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation"
 import Link from "next/link"
-import { BarChart3, Calendar, CheckSquare, Home, Info, LogOut, Bell, User, Award, Shield, ChevronLeft, ChevronRight } from "lucide-react"
+import { BarChart3, Calendar, CheckSquare, Home, Info, LogOut, Bell, User, Award, ChevronLeft, ChevronRight, Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ModeToggle } from "@/components/mode-toggle"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -13,22 +13,14 @@ import { AppSettings } from "@/lib/storage-utils"
 import { ClientOnly } from "@/components/client-only"
 import { AdminBadge } from "@/components/ui/admin-badge"
 import { NetworkPanel } from "@/components/network-panel"
+import { useProfilePicture } from "@/hooks/useProfilePicture"
 
 export function AppSidebar() {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
   const { signOut, user } = useAuth()
   const [isAdmin, setIsAdmin] = useState(false)
-  const [profilePicture, setProfilePicture] = useState<string>("")
-
-  // Load profile picture from user data
-  useEffect(() => {
-    if (user?.profilePicture) {
-      setProfilePicture(user.profilePicture)
-    } else {
-      setProfilePicture("/logo/trackly-profile.png")
-    }
-  }, [user?.profilePicture])
+  const profilePicture = useProfilePicture(user?.profilePicture)
 
   // Initialize collapsed state from localStorage after component mounts
   useEffect(() => {
@@ -77,6 +69,11 @@ export function AppSidebar() {
       icon: Home,
     },
     {
+      title: "Profile & Schedule",
+      href: "/profile",
+      icon: User,
+    },
+    {
       title: "Attendance",
       href: "/attendance",
       icon: Calendar,
@@ -102,9 +99,9 @@ export function AppSidebar() {
       icon: Bell,
     },
     {
-      title: "Profile & Schedule",
-      href: "/profile",
-      icon: User,
+      title: "Settings",
+      href: "/settings",
+      icon: Settings,
     },
     {
       title: "About",
@@ -154,20 +151,20 @@ export function AppSidebar() {
           <Button
             variant="ghost"
             size="icon"
-            className="text-muted-foreground flex-shrink-0"
+            className="h-8 w-8 rounded-full hover:bg-primary/10 hover:text-primary transition-all duration-300 flex-shrink-0"
             onClick={() => setCollapsed(!collapsed)}
           >
             {collapsed ? (
-              <ChevronRight className="h-5 w-5" />
+              <ChevronRight className="h-4 w-4" />
             ) : (
-              <ChevronLeft className="h-5 w-5" />
+              <ChevronLeft className="h-4 w-4" />
             )}
           </Button>
         </div>
 
         {/* Menu */}
         <div className="flex-1 overflow-y-auto py-2">
-          <nav className="space-y-1 px-2">
+          <nav className="space-y-0.5 px-2">
             {finalRoutes.map((route, index) => (
               <Link
                 key={route.href}
@@ -244,7 +241,7 @@ export function AppSidebar() {
       {collapsed && (
         <ClientOnly>
           {user && (
-            <div className="fixed left-2 bottom-2 z-40 flex flex-col items-center gap-4">
+            <div className="fixed left-2 bottom-2 z-40 flex flex-col items-center gap-1">
               <Avatar className="h-12 w-12 border-2 border-primary">
                 <AvatarImage src={profilePicture} />
                 <AvatarFallback>{user.name?.[0] || user.email?.[0] || 'U'}</AvatarFallback>

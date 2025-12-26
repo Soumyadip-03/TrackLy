@@ -2,69 +2,118 @@
 
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { getLoginRecords, LoginRecord } from "@/lib/auth-utils"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { getFromLocalStorage } from "@/lib/storage-utils"
-import { Bell, Mail } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Bell, Mail, RefreshCw } from "lucide-react"
+import { fetchWithAuth } from "@/lib/api"
 
-interface EmailNotification {
+interface LoginHistoryItem {
   timestamp: string;
-  to: string;
+  ipAddress: string;
+  userAgent: string;
+  deviceInfo: {
+    os: string;
+    browser: string;
+  };
+}
+
+interface EmailHistoryItem {
+  type: string;
   subject: string;
-  preview: string;
-  content?: string;
+  sentAt: string;
+  status: string;
+  details?: any;
 }
 
 export function LoginHistory() {
-  const [loginRecords, setLoginRecords] = useState<LoginRecord[]>([])
-  const [emailNotifications, setEmailNotifications] = useState<EmailNotification[]>([])
+  const [loginHistory, setLoginHistory] = useState<LoginHistoryItem[]>([])
+  const [emailHistory, setEmailHistory] = useState<EmailHistoryItem[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [activeTab, setActiveTab] = useState("logins")
 
-  useEffect(() => {
-    // Load login records from localStorage
-    const records = getLoginRecords()
-    setLoginRecords(records)
-    
-    // Load email notifications
-    const emails = getFromLocalStorage<EmailNotification[]>('email_notifications', [])
-    setEmailNotifications(emails)
-
-    // Set up event listener for updates
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key?.includes('login_records')) {
-        setLoginRecords(getLoginRecords())
+  const fetchSecurityData = async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetchWithAuth('/auth/me')
+      if (response.ok) {
+        const result = await response.json()
+        const userData = result.data || result
+        
+        if (userData.userSpecificData) {
+          // Sort login history by timestamp (newest first)
+          const sortedLogins = (userData.userSpecificData.loginHistory || []).sort((a, b) => 
+            new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+          );
+          setLoginHistory(sortedLogins)
+          setEmailHistory(userData.userSpecificData.emailHistory || [])
+        }
       }
-      if (e.key?.includes('email_notifications')) {
-        setEmailNotifications(getFromLocalStorage('email_notifications', []))
-      }
+    } catch (error) {
+      console.error('Error fetching security data:', error)
+    } finally {
+      setIsLoading(false)
     }
-
-    window.addEventListener('storage', handleStorageChange)
-    return () => window.removeEventListener('storage', handleStorageChange)
-  }, [])
-
-  // Format date for display
-  const formatDate = (timestamp: string) => {
-    const date = new Date(timestamp)
-    return date.toLocaleDateString()
   }
 
-  // Format time for display
+  useEffect(() => {
+    fetchSecurityData()
+    
+    // Refresh every 30 seconds when on security tab
+    const interval = setInterval(() => {
+      fetchSecurityData()
+    }, 30000);
+    
+    return () => clearInterval(interval);
+  }, [])
+
+  const formatDate = (timestamp: string) => {
+    const date = new Date(timestamp)
+    const day = String(date.getDate()).padStart(2, '0')
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const year = date.getFullYear()
+    return `${day}/${month}/${year}`
+  }
+
   const formatTime = (timestamp: string) => {
     const date = new Date(timestamp)
-    return date.toLocaleTimeString()
+    return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
+  }
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex justify-center items-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          </div>
+        </CardContent>
+      </Card>
+    )
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Security Activity</CardTitle>
-        <CardDescription>Your account access and notification history</CardDescription>
+    <Card className="h-[320px] flex flex-col">
+      <CardHeader className="flex-shrink-0">
+        <div className="flex justify-between items-start">
+          <div>
+            <CardTitle>Security Activity</CardTitle>
+            <CardDescription>Your account access and notification history</CardDescription>
+          </div>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={fetchSecurityData}
+            disabled={isLoading}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
       </CardHeader>
-      <CardContent>
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-4">
+      <CardContent className="flex-1 overflow-hidden flex flex-col">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full h-full flex flex-col">
+          <TabsList className="grid w-full grid-cols-2 mb-4 flex-shrink-0">
             <TabsTrigger value="logins" className="flex items-center gap-2">
               <Bell className="h-4 w-4" />
               <span>Login Activity</span>
@@ -75,30 +124,30 @@ export function LoginHistory() {
             </TabsTrigger>
           </TabsList>
           
-          <TabsContent value="logins">
-            {loginRecords.length === 0 ? (
+          <TabsContent value="logins" className="flex-1 overflow-hidden mt-0">
+            {loginHistory.length === 0 ? (
               <p className="text-muted-foreground text-sm">No login history available.</p>
             ) : (
-              <ScrollArea className="h-[300px]">
-                <div className="space-y-4">
-                  {loginRecords.map((record, index) => (
-                    <div 
-                      key={index} 
-                      className="flex flex-col space-y-1 border-b pb-3 last:border-0"
-                    >
+              <ScrollArea className="h-full">
+                <div className="space-y-4 pr-4">
+                  {loginHistory.map((login, index) => (
+                    <div key={index} className="flex flex-col space-y-1 border-b pb-3 last:border-0">
                       <div className="flex justify-between items-start">
-                        <div className="font-medium">{formatDate(record.timestamp)}</div>
-                        <div className="text-sm text-muted-foreground">{formatTime(record.timestamp)}</div>
+                        <div className="font-medium">{formatDate(login.timestamp)}</div>
+                        <div className="text-sm text-muted-foreground">{formatTime(login.timestamp)}</div>
                       </div>
                       <div className="flex justify-between items-center">
                         <div className="text-sm">
-                          <span className="font-medium">{record.browser}</span> on {record.device}
+                          <span className="font-medium">{login.deviceInfo.browser}</span> on {login.deviceInfo.os}
                         </div>
                         {index === 0 && (
                           <span className="bg-green-100 text-green-800 text-xs font-medium px-2 py-0.5 rounded dark:bg-green-900 dark:text-green-300">
                             Current
                           </span>
                         )}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        IP: {login.ipAddress}
                       </div>
                     </div>
                   ))}
@@ -107,35 +156,33 @@ export function LoginHistory() {
             )}
           </TabsContent>
           
-          <TabsContent value="emails">
-            {emailNotifications.length === 0 ? (
+          <TabsContent value="emails" className="flex-1 overflow-hidden mt-0">
+            {emailHistory.length === 0 ? (
               <p className="text-muted-foreground text-sm">No email notifications sent yet.</p>
             ) : (
-              <ScrollArea className="h-[300px]">
-                <div className="space-y-4">
-                  {emailNotifications.map((email, index) => (
+              <ScrollArea className="h-full">
+                <div className="space-y-4 pr-4">
+                  {emailHistory.map((email, index) => (
                     <div 
                       key={index} 
                       className="flex flex-col space-y-1 border-b pb-3 last:border-0"
                     >
                       <div className="flex justify-between items-start">
                         <div className="font-medium">{email.subject}</div>
-                        <div className="text-sm text-muted-foreground">{formatDate(email.timestamp)} {formatTime(email.timestamp)}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {formatDate(email.sentAt)} {formatTime(email.sentAt)}
+                        </div>
                       </div>
-                      <div className="text-sm text-muted-foreground">
-                        To: {email.to}
+                      <div className="text-sm text-muted-foreground capitalize">
+                        Type: {email.type} • Status: {email.status}
                       </div>
-                      <div className="text-sm">
-                        {email.preview}
-                      </div>
-                      {email.content && (
-                        <div className="mt-2 p-3 bg-muted rounded-md text-xs whitespace-pre-line">
-                          {email.content}
+                      {email.details && (
+                        <div className="text-xs text-muted-foreground">
+                          {email.details.ipAddress && `IP: ${email.details.ipAddress}`}
+                          {email.details.device && ` • Device: ${email.details.device}`}
+                          {email.details.browser && ` • Browser: ${email.details.browser}`}
                         </div>
                       )}
-                      <div className="text-xs text-muted-foreground mt-1 italic">
-                        Note: This is a simulated email in development. No actual emails are sent.
-                      </div>
                     </div>
                   ))}
                 </div>

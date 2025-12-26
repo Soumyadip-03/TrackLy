@@ -72,10 +72,11 @@ export function SettingsProfileForm({ onUpdateAction }: ProfileFormProps) {
           if (data.role === 'admin') {
             setIsAdmin(true);
           }
+        } else {
+          console.error('Failed to load profile');
         }
       } catch (error) {
         console.error('Error loading profile:', error);
-        toast.error('Failed to load profile');
       } finally {
         setIsLoading(false);
       }
@@ -111,6 +112,40 @@ export function SettingsProfileForm({ onUpdateAction }: ProfileFormProps) {
     }
   };
 
+  const handleRemoveProfilePicture = async () => {
+    try {
+      const token = localStorage.getItem('trackly_token');
+      const response = await fetch('http://localhost:5000/api/user/profile-picture', {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        setProfileData(prev => ({ ...prev, profilePicture: "" }));
+        setPreviewUrl("");
+        setSelectedFile(null);
+        
+        // Update localStorage
+        const storedUser = localStorage.getItem('trackly_user');
+        if (storedUser) {
+          const updatedUser = { ...JSON.parse(storedUser) };
+          delete updatedUser.profilePicture;
+          localStorage.setItem('trackly_user', JSON.stringify(updatedUser));
+        }
+        
+        window.dispatchEvent(new Event('profilePictureUpdated'));
+        toast.success('Profile picture removed');
+      } else {
+        toast.error('Failed to remove profile picture');
+      }
+    } catch (error) {
+      console.error('Error removing profile picture:', error);
+      toast.error('Error removing profile picture');
+    }
+  };
+
   const handleSaveChanges = async () => {
     setIsSaving(true);
     
@@ -134,9 +169,20 @@ export function SettingsProfileForm({ onUpdateAction }: ProfileFormProps) {
         }
 
         const result = await response.json();
-        setProfileData(prev => ({ ...prev, profilePicture: result.profilePicture }));
+        const newProfilePicture = result.profilePicture;
+        setProfileData(prev => ({ ...prev, profilePicture: newProfilePicture }));
         setSelectedFile(null);
         setPreviewUrl("");
+        
+        // Update user in localStorage
+        const storedUser = localStorage.getItem('trackly_user');
+        if (storedUser) {
+          const updatedUser = { ...JSON.parse(storedUser), profilePicture: newProfilePicture };
+          localStorage.setItem('trackly_user', JSON.stringify(updatedUser));
+        }
+        
+        // Dispatch event to notify sidebar
+        window.dispatchEvent(new Event('profilePictureUpdated'));
       }
 
       // Update semester
@@ -168,32 +214,57 @@ export function SettingsProfileForm({ onUpdateAction }: ProfileFormProps) {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex justify-between items-center">
-          <CardTitle>
-            Personal Information
-            {isAdmin && (
-              <span className="ml-2 inline-block">
-                <AdminBadge size="md" />
-              </span>
-            )}
-          </CardTitle>
-        </div>
-        <CardDescription>
-          Your signup credentials are fixed. You can change your profile picture and semester.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Profile Picture Section */}
-        <div className="flex justify-center">
-          <div className="relative group cursor-pointer" onClick={handleAvatarClick}>
-            <Avatar className="h-32 w-32">
-              <AvatarImage src={previewUrl || profileData.profilePicture || undefined} />
-              <AvatarFallback className="text-2xl">{profileData.name?.charAt(0) || user?.email?.charAt(0)}</AvatarFallback>
-            </Avatar>
-            <div className="absolute inset-0 bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-              <Camera className="h-8 w-8 text-white" />
+    <div className="max-w-2xl mx-auto">
+      <Card>
+        <CardHeader className="pb-4">
+          <div className="flex justify-between items-center">
+            <CardTitle className="text-xl">
+              Personal Information
+              {isAdmin && (
+                <span className="ml-2 inline-block">
+                  <AdminBadge size="md" />
+                </span>
+              )}
+            </CardTitle>
+          </div>
+          <CardDescription className="text-sm">
+            Your signup credentials are fixed. You can change your profile picture and semester.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Profile Picture Section */}
+          <div className="flex items-center gap-6 pb-4 border-b">
+            <div className="relative group cursor-pointer" onClick={handleAvatarClick}>
+              <Avatar className="h-24 w-24">
+                {previewUrl ? (
+                  <AvatarImage src={previewUrl} />
+                ) : profileData.profilePicture ? (
+                  <AvatarImage 
+                    src={`http://localhost:5000/${profileData.profilePicture}`} 
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none'
+                    }}
+                  />
+                ) : null}
+                <AvatarFallback className="text-2xl">{profileData.name?.charAt(0) || user?.email?.charAt(0)}</AvatarFallback>
+              </Avatar>
+              <div className="absolute inset-0 bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                <Camera className="h-6 w-6 text-white" />
+              </div>
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-lg">{profileData.name}</h3>
+              <p className="text-sm text-muted-foreground">{profileData.email}</p>
+              {(profileData.profilePicture || previewUrl) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => { e.stopPropagation(); handleRemoveProfilePicture(); }}
+                  className="text-red-600 hover:text-red-700 mt-2 h-8 px-2"
+                >
+                  Remove Picture
+                </Button>
+              )}
             </div>
           </div>
           <input
@@ -203,80 +274,56 @@ export function SettingsProfileForm({ onUpdateAction }: ProfileFormProps) {
             onChange={handleFileChange}
             className="hidden"
           />
-        </div>
 
-        {/* Fixed Fields */}
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">Full Name</Label>
-            <Input 
-              id="name" 
-              value={profileData.name || ""} 
-              disabled 
-              className="bg-muted/50 cursor-not-allowed"
-            />
-            <p className="text-xs text-muted-foreground">Set during signup - cannot be changed</p>
-          </div>
+          {/* Compact Fields */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="studentId" className="text-sm">Student ID</Label>
+              <Input 
+                id="studentId" 
+                value={profileData.studentId || ""} 
+                disabled 
+                className="bg-muted/50 cursor-not-allowed h-9"
+              />
+            </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input 
-              id="email" 
-              type="email" 
-              value={profileData.email || ""} 
-              disabled 
-              className="bg-muted/50 cursor-not-allowed"
-            />
-            <p className="text-xs text-muted-foreground">Set during signup - cannot be changed</p>
+            <div className="space-y-2">
+              <Label htmlFor="currentSemester" className="text-sm">Current Semester</Label>
+              <Select 
+                value={profileData.currentSemester.toString()} 
+                onValueChange={handleSemesterChange}
+              >
+                <SelectTrigger id="currentSemester" className="h-9">
+                  <SelectValue placeholder="Select semester" />
+                </SelectTrigger>
+                <SelectContent>
+                  {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => (
+                    <SelectItem key={sem} value={sem.toString()}>
+                      Semester {sem}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="studentId">Student ID</Label>
-            <Input 
-              id="studentId" 
-              value={profileData.studentId || ""} 
-              disabled 
-              className="bg-muted/50 cursor-not-allowed"
-            />
-            <p className="text-xs text-muted-foreground">Set during signup - cannot be changed</p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="currentSemester">Current Semester</Label>
-            <Select 
-              value={profileData.currentSemester.toString()} 
-              onValueChange={handleSemesterChange}
-            >
-              <SelectTrigger id="currentSemester">
-                <SelectValue placeholder="Select semester" />
-              </SelectTrigger>
-              <SelectContent>
-                {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => (
-                  <SelectItem key={sem} value={sem.toString()}>
-                    Semester {sem}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">You can change your current semester</p>
-          </div>
-        </div>
-      </CardContent>
-      <CardFooter className="flex justify-end border-t p-4">
-        <Button 
-          onClick={handleSaveChanges} 
-          disabled={!hasChanges || isSaving}
-        >
-          {isSaving ? (
-            "Saving..."
-          ) : (
-            <>
-              <Save className="mr-2 h-4 w-4" />
-              Save Changes
-            </>
-          )}
-        </Button>
-      </CardFooter>
-    </Card>
+        </CardContent>
+        <CardFooter className="flex justify-end border-t py-3 px-6">
+          <Button 
+            onClick={handleSaveChanges} 
+            disabled={!hasChanges || isSaving}
+            size="sm"
+          >
+            {isSaving ? (
+              "Saving..."
+            ) : (
+              <>
+                <Save className="mr-2 h-3 w-3" />
+                Save Changes
+              </>
+            )}
+          </Button>
+        </CardFooter>
+      </Card>
+    </div>
   )
 }

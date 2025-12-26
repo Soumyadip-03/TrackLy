@@ -94,6 +94,7 @@ mongoose.connection.on('reconnected', () => {
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/user', require('./routes/user'));
 app.use('/api/subject', require('./routes/subject'));
+app.use('/api/schedule', require('./routes/schedule'));
 app.use('/api/attendance', require('./routes/attendance'));
 app.use('/api/todo', require('./routes/todo'));
 app.use('/api/notification', require('./routes/notification'));

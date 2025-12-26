@@ -10,17 +10,28 @@ const NotificationSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Please provide a title'],
     trim: true,
-    maxlength: [100, 'Title cannot exceed 100 characters']
+    maxlength: [200, 'Title cannot exceed 200 characters']
   },
   message: {
     type: String,
     required: [true, 'Please provide a message'],
-    trim: true
+    trim: true,
+    maxlength: [500, 'Message cannot exceed 500 characters']
   },
   type: {
     type: String,
-    enum: ['attendance', 'todo', 'system', 'point'],
+    enum: ['reminder', 'alert', 'info', 'success'],
+    default: 'info'
+  },
+  category: {
+    type: String,
+    enum: ['todo', 'attendance', 'calendar', 'points', 'achievement', 'system'],
     default: 'system'
+  },
+  priority: {
+    type: String,
+    enum: ['low', 'medium', 'high'],
+    default: 'medium'
   },
   read: {
     type: Boolean,

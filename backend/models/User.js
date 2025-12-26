@@ -41,7 +41,7 @@ const UserSchema = new mongoose.Schema({
   },
   profilePicture: {
     type: String,
-    default: 'default-profile.jpg'
+    default: null
   },
   pdfSchedule: {
     name: String,

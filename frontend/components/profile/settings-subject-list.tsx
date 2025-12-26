@@ -8,31 +8,18 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { toast } from "@/components/ui/use-toast"
-import { getFromLocalStorage, saveToLocalStorage } from "@/lib/storage-utils"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
+import { subjectService, type Subject } from "@/lib/services/subject-service"
 
 interface SubjectData {
-  id: string
+  _id?: string
+  id?: string
   name: string
   code: string
   classType: string
   classesPerWeek: number
   isEditing?: boolean
-}
-
-interface ScheduleClassEntry {
-  id: string;
-  day: string;
-  subject: string;
-  startTime: string;
-  endTime: string;
-  room: string;
-  classType: string;
-}
-
-interface ScheduleData {
-  classes: ScheduleClassEntry[];
 }
 
 interface SubjectListProps {
@@ -41,106 +28,8 @@ interface SubjectListProps {
 
 export function SettingsSubjectList({ onUpdateAction }: SubjectListProps) {
   const [subjects, setSubjects] = useState<SubjectData[]>([])
-  const [schedule, setSchedule] = useState<ScheduleData>({ classes: [] });
-
-  // Load initial data from localStorage - fix to prevent infinite loop
-  useEffect(() => {
-    const savedSubjects = getFromLocalStorage<SubjectData[]>('subjects', []);
-    const savedSchedule = getFromLocalStorage<ScheduleData>('schedule', { classes: [] });
-    setSubjects(savedSubjects);
-    setSchedule(savedSchedule);
-    
-    // Only call onUpdateAction on initial mount, not on every re-render
-    // when onUpdateAction changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Count classes per subject from the schedule - updated to count by subject and class type
-  useEffect(() => {
-    if (schedule.classes.length > 0) {
-      // First group all schedule entries by subject-classType combination
-      const subjectClassTypeMap = new Map<string, { count: number, classType: string, name: string }>();
-      
-      // Process all non-break schedule entries
-      schedule.classes.forEach(cls => {
-        if (cls.classType !== "break" && cls.subject) {
-          // Create a unique key for this subject-classType combination
-          const subjectKey = `${cls.subject.toLowerCase()}_${cls.classType || 'none'}`;
-          
-          if (!subjectClassTypeMap.has(subjectKey)) {
-            subjectClassTypeMap.set(subjectKey, { 
-              count: 1, 
-              classType: cls.classType || 'none',
-              name: cls.subject
-            });
-          } else {
-            const entry = subjectClassTypeMap.get(subjectKey)!;
-            entry.count++;
-          }
-        }
-      });
-      
-      // Update existing subjects and create any missing ones
-      let updatedSubjects = [...subjects];
-      
-      // Update existing subjects with matching subject-classType
-      updatedSubjects = updatedSubjects.map(subject => {
-        const key = `${subject.name.toLowerCase()}_${subject.classType || 'none'}`;
-        const scheduleEntry = subjectClassTypeMap.get(key);
-        
-        if (scheduleEntry) {
-          // Remove this entry from the map since we've processed it
-          subjectClassTypeMap.delete(key);
-          
-          return {
-            ...subject,
-            classesPerWeek: scheduleEntry.count
-          };
-        }
-        return subject;
-      });
-      
-      // Add new subjects for remaining entries
-      if (subjectClassTypeMap.size > 0) {
-        subjectClassTypeMap.forEach((data, key) => {
-          const existingWithSameName = updatedSubjects.find(
-            s => s.name.toLowerCase() === data.name.toLowerCase() &&
-                s.classType === data.classType
-          );
-          
-          if (!existingWithSameName) {
-            // Get the code from any existing subject with the same name
-            const codeFromExisting = updatedSubjects.find(
-              s => s.name.toLowerCase() === data.name.toLowerCase()
-            )?.code || "";
-            
-            updatedSubjects.push({
-              id: Math.random().toString(36).substring(2, 9),
-              name: data.name.toUpperCase(),
-              code: codeFromExisting,
-              classType: data.classType,
-              classesPerWeek: data.count,
-              isEditing: false
-            });
-          }
-        });
-      }
-      
-      if (JSON.stringify(updatedSubjects) !== JSON.stringify(subjects)) {
-        setSubjects(updatedSubjects);
-        saveToLocalStorage('subjects', updatedSubjects);
-      }
-    }
-  }, [schedule, subjects]);
-
-  // Separate effect to handle updating the parent when our subjects change
-  useEffect(() => {
-    // Only update parent when subjects actually change
-    onUpdateAction(subjects);
-    // This will only run when subjects change, not when onUpdateAction changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [subjects]);
-
+  const [isLoading, setIsLoading] = useState(true)
+  const [isAddingNew, setIsAddingNew] = useState(false)
   const [newSubject, setNewSubject] = useState<Partial<SubjectData>>({
     name: "",
     code: "",
@@ -148,7 +37,36 @@ export function SettingsSubjectList({ onUpdateAction }: SubjectListProps) {
     classesPerWeek: 0,
   })
 
-  const [isAddingNew, setIsAddingNew] = useState(false)
+  // Load subjects from database
+  useEffect(() => {
+    loadSubjects();
+  }, []);
+
+  const loadSubjects = async () => {
+    try {
+      setIsLoading(true);
+      const data = await subjectService.getAll();
+      const formattedData = data.map(s => ({
+        _id: s._id,
+        id: s._id,
+        name: s.name,
+        code: s.code,
+        classType: s.classType,
+        classesPerWeek: s.classesPerWeek || 0
+      }));
+      setSubjects(formattedData);
+      onUpdateAction(formattedData);
+    } catch (error) {
+      console.error('Error loading subjects:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load subjects",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleAddNew = () => {
     setIsAddingNew(true)
@@ -185,7 +103,7 @@ export function SettingsSubjectList({ onUpdateAction }: SubjectListProps) {
     return text.toUpperCase();
   }
 
-  const handleSaveNewSubject = () => {
+  const handleSaveNewSubject = async () => {
     if (!newSubject.name) {
       toast({
         title: "Error",
@@ -195,38 +113,40 @@ export function SettingsSubjectList({ onUpdateAction }: SubjectListProps) {
       return
     }
 
-    const newId = Math.random().toString(36).substring(2, 9)
-    const newSubjectWithId: SubjectData = { 
-      id: newId, 
-      name: capitalizeSubject(newSubject.name || ""), 
-      code: newSubject.code || "", 
-      classType: newSubject.classType || "none", // Default to "none" if not specified
-      classesPerWeek: newSubject.classesPerWeek || 0 
-    }
-    
-    const updatedSubjects = [...subjects, newSubjectWithId]
-    setSubjects(updatedSubjects)
-    
-    // Save to localStorage
-    saveToLocalStorage('subjects', updatedSubjects);
-    
-    setIsAddingNew(false)
-    onUpdateAction(updatedSubjects) // Send updated data to parent
+    try {
+      const created = await subjectService.create({
+        name: capitalizeSubject(newSubject.name || ""),
+        code: newSubject.code || "",
+        classType: newSubject.classType || "none",
+        classesPerWeek: newSubject.classesPerWeek || 0,
+        semester: 1
+      });
 
-    toast({
-      title: "Subject Added",
-      description: `${newSubject.name} (${(newSubject.classType || "none").toUpperCase()}) has been added.`,
-    })
+      await loadSubjects();
+      setIsAddingNew(false);
+
+      toast({
+        title: "Subject Added",
+        description: `${newSubject.name} (${(newSubject.classType || "none").toUpperCase()}) has been added.`,
+      });
+    } catch (error) {
+      console.error('Error creating subject:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create subject",
+        variant: "destructive",
+      });
+    }
   }
 
   const handleEdit = (id: string) => {
-    setSubjects((prev) => prev.map((subject) => (subject.id === id ? { ...subject, isEditing: true } : subject)))
+    setSubjects((prev) => prev.map((subject) => ((subject.id === id || subject._id === id) ? { ...subject, isEditing: true } : subject)))
   }
 
   const handleEditChange = (id: string, e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
     const updatedSubjects = subjects.map((subject) =>
-      subject.id === id
+      (subject.id === id || subject._id === id)
         ? {
             ...subject,
             [name]: name === "classesPerWeek" ? Number.parseInt(value) || 0 : 
@@ -236,16 +156,12 @@ export function SettingsSubjectList({ onUpdateAction }: SubjectListProps) {
     );
     
     setSubjects(updatedSubjects);
-    
-    // Save to localStorage with each edit change
-    saveToLocalStorage('subjects', updatedSubjects);
-    
-    onUpdateAction(updatedSubjects); // Send updated data to parent
+    onUpdateAction(updatedSubjects);
   }
 
   const handleEditSelectChange = (id: string, value: string) => {
     const updatedSubjects = subjects.map((subject) =>
-      subject.id === id
+      (subject.id === id || subject._id === id)
         ? {
             ...subject,
             classType: value,
@@ -254,34 +170,39 @@ export function SettingsSubjectList({ onUpdateAction }: SubjectListProps) {
     );
     
     setSubjects(updatedSubjects);
-    saveToLocalStorage('subjects', updatedSubjects);
     onUpdateAction(updatedSubjects);
   }
 
-  const handleSaveEdit = (id: string) => {
-    const updatedSubjects = subjects.map((subject) => 
-      subject.id === id ? { ...subject, isEditing: false } : subject
-    );
-    
-    setSubjects(updatedSubjects);
-    
-    // Save to localStorage
-    saveToLocalStorage('subjects', updatedSubjects);
-    
-    onUpdateAction(updatedSubjects); // Send updated data to parent
+  const handleSaveEdit = async (id: string) => {
+    try {
+      const subject = subjects.find(s => s.id === id || s._id === id);
+      if (!subject) return;
 
-    toast({
-      title: "Subject Updated",
-      description: "Subject information has been updated successfully.",
-    })
+      await subjectService.update(subject._id || subject.id || '', {
+        name: subject.name,
+        code: subject.code,
+        classType: subject.classType,
+        classesPerWeek: subject.classesPerWeek
+      });
+
+      await loadSubjects();
+
+      toast({
+        title: "Subject Updated",
+        description: "Subject information has been updated successfully.",
+      });
+    } catch (error) {
+      console.error('Error updating subject:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update subject",
+        variant: "destructive",
+      });
+    }
   }
 
-  const handleDelete = (id: string) => {
-    // Log for debugging
-    console.log("Deleting subject with ID:", id);
-    
-    // Find the subject for toast message
-    const subjectToDelete = subjects.find(s => s.id === id);
+  const handleDelete = async (id: string) => {
+    const subjectToDelete = subjects.find(s => s.id === id || s._id === id);
     
     if (!subjectToDelete) {
       toast({
@@ -291,44 +212,48 @@ export function SettingsSubjectList({ onUpdateAction }: SubjectListProps) {
       });
       return;
     }
-    
-    // Create new array without the deleted subject
-    const updatedSubjects = subjects.filter(subject => subject.id !== id);
-    
-    // Update state with the new array
-    setSubjects(updatedSubjects);
-    
-    // Explicitly save to localStorage to ensure deletion persists
-    saveToLocalStorage('subjects', updatedSubjects);
-    console.log("Saved updated subjects to localStorage after deletion");
-    
-    // Notify parent component
-    onUpdateAction(updatedSubjects);
 
-    // Show confirmation toast
-    toast({
-      title: "Subject Deleted",
-      description: `${subjectToDelete.name} has been removed`,
-    });
+    try {
+      await subjectService.delete(subjectToDelete._id || subjectToDelete.id || '');
+      await loadSubjects();
+
+      toast({
+        title: "Subject Deleted",
+        description: `${subjectToDelete.name} has been removed`,
+      });
+    } catch (error) {
+      console.error('Error deleting subject:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete subject",
+        variant: "destructive",
+      });
+    }
   }
 
   // New function to clear all subjects
-  const handleClearAllSubjects = () => {
-    // Show confirmation dialog before clearing
+  const handleClearAllSubjects = async () => {
     if (window.confirm("Are you sure you want to clear all subjects? This action cannot be undone.")) {
-      // Clear subjects
-      setSubjects([]);
-      
-      // Clear localStorage - this will automatically be namespaced with user ID
-      saveToLocalStorage('subjects', []);
-      
-      // Update parent
-      onUpdateAction([]);
-      
-      toast({
-        title: "All Subjects Cleared",
-        description: "All subjects have been removed.",
-      });
+      try {
+        // Delete all subjects one by one
+        for (const subject of subjects) {
+          await subjectService.delete(subject._id || subject.id || '');
+        }
+        
+        await loadSubjects();
+        
+        toast({
+          title: "All Subjects Cleared",
+          description: "All subjects have been removed.",
+        });
+      } catch (error) {
+        console.error('Error clearing subjects:', error);
+        toast({
+          title: "Error",
+          description: "Failed to clear all subjects",
+          variant: "destructive",
+        });
+      }
     }
   };
 
@@ -345,10 +270,15 @@ export function SettingsSubjectList({ onUpdateAction }: SubjectListProps) {
         </Button>
       </CardHeader>
       <CardContent>
-        {subjects.length > 0 ? (
+        {isLoading ? (
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+            <p className="text-muted-foreground mt-4">Loading subjects...</p>
+          </div>
+        ) : subjects.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {subjects.map((subject) => (
-              <Card key={subject.id} className={`shadow-sm hover:shadow-md transition-shadow ${
+              <Card key={subject._id || subject.id} className={`shadow-sm hover:shadow-md transition-shadow ${
                 subject.classType === 'lecture' ? 'border-blue-200 bg-blue-50/30' :
                 subject.classType === 'lab' ? 'border-green-200 bg-green-50/30' :
                 subject.classType === 'tutorial' ? 'border-purple-200 bg-purple-50/30' :

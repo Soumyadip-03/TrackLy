@@ -55,6 +55,10 @@ export function setNotificationSoundPreference(enabled: boolean): void {
  * @returns Promise that resolves when sound is played (or fails)
  */
 export async function playNotificationSound(type: 'success' | 'warning' | 'alert' = 'success') {
+  // Check if notification sound is enabled
+  const settings = getFromLocalStorage<SoundSettings>('notification_settings', {});
+  if (settings.notificationSound === false) return;
+
   if (!audioContext) {
     initializeAudio();
   }

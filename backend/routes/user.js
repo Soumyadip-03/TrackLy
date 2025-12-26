@@ -7,6 +7,7 @@ const { updateUserInfo } = require('../middleware/userDb');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const bcrypt = require('bcryptjs');
 
 // Set up storage for multer
 const storage = multer.diskStorage({
@@ -70,6 +71,40 @@ const uploadProfilePicture = multer({
   }
 });
 
+// @desc    Delete profile picture
+// @route   DELETE /api/user/profile-picture
+// @access  Private
+router.delete('/profile-picture', protect, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    
+    if (user.profilePicture) {
+      const filePath = path.join(__dirname, '..', user.profilePicture);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      req.user.id,
+      { profilePicture: null },
+      { new: true }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Profile picture deleted',
+      data: updatedUser
+    });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({
+      success: false,
+      error: 'Server error deleting profile picture'
+    });
+  }
+});
+
 // @desc    Upload profile picture
 // @route   POST /api/user/profile-picture
 // @access  Private
@@ -87,7 +122,7 @@ router.post(
       }
 
       const { filename } = req.file;
-      const profilePicturePath = `/uploads/profiles/${filename}`;
+      const profilePicturePath = `uploads/profiles/${filename}`;
 
       const user = await User.findByIdAndUpdate(
         req.user.id,
@@ -531,5 +566,102 @@ router.post(
     }
   }
 );
+
+// @desc    Change password
+// @route   PUT /api/user/change-password
+// @access  Private
+router.put(
+  '/change-password',
+  protect,
+  [
+    body('currentPassword', 'Current password is required').not().isEmpty(),
+    body('newPassword', 'New password must be at least 6 characters').isLength({ min: 6 })
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, errors: errors.array() });
+    }
+
+    try {
+      const { currentPassword, newPassword } = req.body;
+      
+      const user = await User.findById(req.user.id).select('+password');
+      
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          error: 'User not found'
+        });
+      }
+
+      const isMatch = await user.matchPassword(currentPassword);
+      
+      if (!isMatch) {
+        return res.status(401).json({
+          success: false,
+          error: 'Current password is incorrect'
+        });
+      }
+
+      user.password = newPassword;
+      await user.save();
+
+      await req.userDb.models.UserInfo.findOneAndUpdate(
+        { mainUserId: req.user.id },
+        { 
+          $push: { 
+            accountActivity: {
+              action: 'password_changed',
+              timestamp: new Date()
+            }
+          }
+        }
+      );
+
+      res.status(200).json({
+        success: true,
+        message: 'Password changed successfully'
+      });
+    } catch (err) {
+      console.error(err.message);
+      res.status(500).json({
+        success: false,
+        error: 'Server error'
+      });
+    }
+  }
+);
+
+// @desc    Clear all login sessions
+// @route   POST /api/user/clear-sessions
+// @access  Private
+router.post('/clear-sessions', protect, async (req, res) => {
+  try {
+    await req.userDb.models.UserInfo.findOneAndUpdate(
+      { mainUserId: req.user.id },
+      { 
+        $set: { loginHistory: [] },
+        $push: { 
+          accountActivity: {
+            action: 'all_sessions_cleared',
+            timestamp: new Date()
+          }
+        }
+      }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'All login sessions cleared successfully'
+    });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({
+      success: false,
+      error: 'Server error'
+    });
+  }
+});
 
 module.exports = router;

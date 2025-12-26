@@ -29,18 +29,6 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <ToastContext.Provider value={{ showToast: toast }}>
-      <Toaster 
-        position="top-right"
-        toastOptions={{
-          className: 'custom-toast',
-          style: {
-            background: 'var(--background)',
-            color: 'var(--foreground)',
-            border: '1px solid var(--border)',
-            borderRadius: '0.5rem',
-          },
-        }}
-      />
       {children}
     </ToastContext.Provider>
   )

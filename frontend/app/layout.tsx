@@ -11,6 +11,7 @@ import { NotificationProvider } from "@/components/ui/notification-popup"
 import { SessionPersistenceProvider } from "@/components/session-persistence"
 import { ToastProvider } from "@/components/providers/toast-provider"
 import { ConnectionErrorNotification } from "@/components/connection-error-notification"
+import { SonnerToasterProvider } from "@/components/sonner-toaster-provider"
 import "./globals.css"
 
 const inter = Inter({ 
@@ -48,6 +49,7 @@ export default function RootLayout({
                   <ConnectionErrorNotification />
                   {children}
                   <ButtonConverter />
+                  <SonnerToasterProvider />
                 </AuthProvider>
               </SessionPersistenceProvider>
               <AIChat />

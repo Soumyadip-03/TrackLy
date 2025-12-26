@@ -254,6 +254,17 @@ exports.initializeUserDatabase = async (userId) => {
         size: Number
       }
     },
+    schedule: {
+      classes: [{
+        id: String,
+        day: String,
+        subject: String,
+        startTime: String,
+        endTime: String,
+        room: String,
+        classType: String
+      }]
+    },
     chatHistory: [{
       role: {
         type: String,

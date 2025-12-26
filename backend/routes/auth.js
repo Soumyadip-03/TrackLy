@@ -210,9 +210,20 @@ router.post(
 
       // Get device and browser info from user agent
       const userAgent = req.headers['user-agent'] || 'Unknown device';
-      const ipAddress = req.headers['x-forwarded-for'] || 
-                        req.connection.remoteAddress || 
-                        'Unknown IP';
+      let ipAddress = req.headers['x-forwarded-for'] || 
+                      req.connection.remoteAddress || 
+                      req.socket.remoteAddress ||
+                      'Unknown IP';
+      
+      // Handle multiple IPs in x-forwarded-for (take first one)
+      if (ipAddress.includes(',')) {
+        ipAddress = ipAddress.split(',')[0].trim();
+      }
+      
+      // Convert IPv6 localhost to IPv4
+      if (ipAddress === '::1' || ipAddress === '::ffff:127.0.0.1') {
+        ipAddress = '127.0.0.1';
+      }
       
       // Parse user agent for more readable device/browser info
       const deviceInfo = parseUserAgent(userAgent);

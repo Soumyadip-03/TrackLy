@@ -84,9 +84,7 @@ router.post(
   protect,
   [
     body('name', 'Name is required').not().isEmpty(),
-    body('code', 'Code is required').not().isEmpty(),
-    body('semester', 'Semester is required').isNumeric(),
-    body('schedule', 'Schedule must be an array').isArray()
+    body('code', 'Code is required').not().isEmpty()
   ],
   async (req, res) => {
     const errors = validationResult(req);
@@ -95,14 +93,16 @@ router.post(
     }
 
     try {
-      const { name, code, semester, schedule } = req.body;
+      const { name, code, classType, semester, schedule, classesPerWeek } = req.body;
 
       // Create subject
       const subject = await req.userDb.models.Subject.create({
         name,
         code,
-        semester,
-        schedule
+        classType: classType || 'none',
+        semester: semester || 1,
+        schedule: schedule || [],
+        classesPerWeek: classesPerWeek || 0
       });
 
       res.status(201).json({
@@ -134,11 +134,13 @@ router.put('/:id', protect, async (req, res) => {
     }
 
     // Update fields
-    const { name, code, semester, schedule } = req.body;
+    const { name, code, classType, semester, schedule, classesPerWeek } = req.body;
     if (name) subject.name = name;
     if (code) subject.code = code;
+    if (classType) subject.classType = classType;
     if (semester) subject.semester = semester;
     if (schedule) subject.schedule = schedule;
+    if (classesPerWeek !== undefined) subject.classesPerWeek = classesPerWeek;
 
     await subject.save();
 

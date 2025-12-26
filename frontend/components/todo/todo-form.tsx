@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/components/ui/use-toast"
 import { SaveButton } from "@/components/ui/save-button"
-import { saveToLocalStorage, getFromLocalStorage } from "@/lib/storage-utils" 
+import { todoService, CreateTodoDto } from "@/lib/services/todo-service"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -17,13 +17,14 @@ import { Calendar } from "@/components/ui/calendar"
 
 // Todo item type
 export interface TodoItem {
-  id: string
+  _id: string
   title: string
   description: string
-  dueDate: string
+  dueDate: string | null
   completed: boolean
   priority: "low" | "medium" | "high"
   createdAt: string
+  updatedAt: string
 }
 
 export function TodoForm() {
@@ -32,24 +33,6 @@ export function TodoForm() {
   const [description, setDescription] = useState("")
   const [dueDate, setDueDate] = useState<Date | undefined>(undefined)
   const [priority, setPriority] = useState<"low" | "medium" | "high">("medium")
-
-  // Wrap crypto.randomUUID() in a function to avoid hydration mismatches
-  const generateId = useCallback(() => {
-    return typeof window !== 'undefined' ? crypto.randomUUID() : ''
-  }, [])
-
-  // Safely get existing todos from local storage
-  const getExistingTodos = useCallback((): TodoItem[] => {
-    try {
-      if (typeof window !== 'undefined') {
-        return getFromLocalStorage<TodoItem[]>('todos', [])
-      }
-      return []
-    } catch (error) {
-      console.error("Error loading todos:", error)
-      return []
-    }
-  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -66,28 +49,20 @@ export function TodoForm() {
     setIsSaving(true)
     
     try {
-      // Create new todo item
-      const newTodo: TodoItem = {
-        id: generateId(),
-        title,
-        description,
-        dueDate: dueDate ? dueDate.toISOString() : "",
-        completed: false,
-        priority,
-        createdAt: new Date().toISOString()
+      const todoData: CreateTodoDto = {
+        title: title.trim(),
+        description: description.trim(),
+        dueDate: dueDate ? dueDate.toISOString() : null,
+        priority
       }
       
-      // Save to localStorage
-      const existingTodos = getExistingTodos()
-      const updatedTodos = [...existingTodos, newTodo]
-      saveToLocalStorage('todos', updatedTodos)
+      await todoService.create(todoData)
       
       // Notify UI components of the update
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('todosUpdated'))
       }
       
-      // Show success message
       toast({
         title: "Todo Created",
         description: "Your new todo item has been saved",
@@ -140,7 +115,7 @@ export function TodoForm() {
             />
           </div>
           
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4">
             <div className="space-y-2">
               <Label htmlFor="dueDate">Due Date (Optional)</Label>
               <Popover>

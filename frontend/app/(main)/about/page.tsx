@@ -1,7 +1,6 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { PageHeader } from "@/components/page-header"
 import { Bot, CheckCircle, Github, Linkedin, Mail, MessageSquare, Sparkles, Twitter } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
@@ -33,8 +32,7 @@ export default function AboutPage() {
 
   return (
     <div className="container py-6 space-y-6">
-      <PageHeader title="About" description="Learn about the attendance tracking system" />
-
+      <div className="py-6"></div>
       <Tabs defaultValue="system" className="space-y-4">
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="system">About System</TabsTrigger>

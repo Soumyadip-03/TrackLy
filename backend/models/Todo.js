@@ -6,29 +6,25 @@ const TodoSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
-  subject: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Subject',
-    default: null
-  },
   title: {
     type: String,
     required: [true, 'Please provide a title'],
     trim: true,
-    maxlength: [100, 'Title cannot exceed 100 characters']
+    maxlength: [200, 'Title cannot exceed 200 characters']
   },
   description: {
     type: String,
     trim: true,
-    maxlength: [500, 'Description cannot exceed 500 characters']
+    maxlength: [1000, 'Description cannot exceed 1000 characters']
   },
-  date: {
+  dueDate: {
     type: Date,
-    required: true
-  },
-  time: {
-    type: String,
     default: null
+  },
+  priority: {
+    type: String,
+    enum: ['low', 'medium', 'high'],
+    default: 'medium'
   },
   completed: {
     type: Boolean,
@@ -37,7 +33,17 @@ const TodoSchema = new mongoose.Schema({
   createdAt: {
     type: Date,
     default: Date.now
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now
   }
+});
+
+// Update the updatedAt timestamp before saving
+TodoSchema.pre('save', function(next) {
+  this.updatedAt = Date.now();
+  next();
 });
 
 module.exports = mongoose.model('Todo', TodoSchema); 
