@@ -329,6 +329,8 @@ router.get('/stats', protect, async (req, res) => {
 // @access  Private
 router.get('/history', protect, async (req, res) => {
   try {
+    const userId = req.user.id;
+    
     // Get attendance records with subject details
     const history = await Attendance.find({ user: userId })
       .populate('subject', 'name code')
@@ -353,6 +355,7 @@ router.get('/history', protect, async (req, res) => {
 // @access  Private
 router.get('/range', protect, async (req, res) => {
   try {
+    const userId = req.user.id;
     const { startDate, endDate } = req.query;
 
     // Validate dates
@@ -382,6 +385,56 @@ router.get('/range', protect, async (req, res) => {
       success: true,
       count: history.length,
       data: history
+    });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({
+      success: false,
+      error: 'Server error'
+    });
+  }
+});
+
+// @desc    Get all attendance records (schedule-based)
+// @route   GET /api/attendance/records
+// @access  Private
+router.get('/records', protect, async (req, res) => {
+  try {
+    const userInfo = await req.userDb.models.UserInfo.findOne({ mainUserId: req.user.id });
+    
+    res.status(200).json({
+      success: true,
+      data: userInfo?.attendanceRecords || []
+    });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({
+      success: false,
+      error: 'Server error'
+    });
+  }
+});
+
+// @desc    Save attendance records (schedule-based)
+// @route   POST /api/attendance/records
+// @access  Private
+router.post('/records', protect, async (req, res) => {
+  try {
+    const { records } = req.body;
+
+    const userInfo = await req.userDb.models.UserInfo.findOneAndUpdate(
+      { mainUserId: req.user.id },
+      { 
+        $set: { 
+          attendanceRecords: records || []
+        }
+      },
+      { upsert: true, new: true }
+    );
+
+    res.status(200).json({
+      success: true,
+      data: userInfo.attendanceRecords
     });
   } catch (err) {
     console.error(err.message);
