@@ -23,7 +23,7 @@ interface AttendanceRecord {
 
 export default function AttendancePage() {
   const [records, setRecords] = useState<AttendanceRecord[]>([])
-  const [activeTab, setActiveTab] = useState("record")
+  const [activeTab, setActiveTab] = useState("academic-period")
 
   // Load saved records from localStorage and check URL parameters
   useEffect(() => {
@@ -37,6 +37,8 @@ export default function AttendancePage() {
       
       if (tabParam && ['academic-period', 'record', 'auto-marked', 'calculator'].includes(tabParam)) {
         setActiveTab(tabParam);
+      } else {
+        setActiveTab('academic-period');
       }
     }
     

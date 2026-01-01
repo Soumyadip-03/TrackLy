@@ -145,9 +145,12 @@ const UserSchema = new mongoose.Schema({
     default: Date.now
   },
   holidays: [{
-    date: Date,
-    name: String,
-    description: String,
+    id: String,
+    day: Number,
+    month: Number,
+    year: Number,
+    reason: String,
+    semester: String,
     createdAt: {
       type: Date,
       default: Date.now

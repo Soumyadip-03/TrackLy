@@ -6,13 +6,15 @@ import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { getFromLocalStorage, saveToLocalStorage } from "@/lib/storage-utils"
-import { CalendarIcon, GraduationCap, Clock } from "lucide-react"
+import { CalendarIcon, GraduationCap, Clock, CalendarDays } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { format, isValid } from "date-fns"
 import { toast } from "@/components/ui/use-toast"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { HolidayManager } from "./holiday-manager"
+import { HolidayList } from "./holiday-list"
 
 interface SemesterPeriod {
   semester: string;
@@ -27,6 +29,8 @@ export function AcademicPeriodSelector() {
   const [currentSemester, setCurrentSemester] = useState<string>("1");
   const [semesterName, setSemesterName] = useState<string>("Semester 1");
   const [semesterPeriods, setSemesterPeriods] = useState<SemesterPeriod[]>([]);
+  const [isPeriodSaved, setIsPeriodSaved] = useState<boolean>(false);
+  const [refreshKey, setRefreshKey] = useState(0);
   
   useEffect(() => {
     const loadData = () => {
@@ -43,12 +47,15 @@ export function AcademicPeriodSelector() {
       if (currentPeriod) {
         if (currentPeriod.startDate) setStartDate(new Date(currentPeriod.startDate));
         if (currentPeriod.endDate) setEndDate(new Date(currentPeriod.endDate));
+        setIsPeriodSaved(true);
       } else {
         const savedStartDate = getFromLocalStorage<string>('collegeStartDate', '');
         if (savedStartDate) setStartDate(new Date(savedStartDate));
         
         const savedEndDate = getFromLocalStorage<string>('collegeEndDate', '');
         if (savedEndDate) setEndDate(new Date(savedEndDate));
+        
+        setIsPeriodSaved(savedStartDate && savedEndDate ? true : false);
       }
       
       setIsLoading(false);
@@ -98,6 +105,7 @@ export function AcademicPeriodSelector() {
       if (endDate) saveToLocalStorage('collegeEndDate', endDate.toISOString());
       
       setSemesterPeriods(updatedPeriods);
+      setIsPeriodSaved(true);
       
       toast({
         title: "Success",
@@ -141,10 +149,17 @@ export function AcademicPeriodSelector() {
       } else {
         setEndDate(undefined);
       }
+      
+      setIsPeriodSaved(selectedPeriod.startDate && selectedPeriod.endDate ? true : false);
     } else {
       setStartDate(undefined);
       setEndDate(undefined);
+      setIsPeriodSaved(false);
     }
+  };
+  
+  const handleHolidayAdded = () => {
+    setRefreshKey(prev => prev + 1);
   };
   
   if (isLoading) {
@@ -170,9 +185,9 @@ export function AcademicPeriodSelector() {
   }
   
   return (
-    <div className="w-full">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
+    <div className="w-full max-w-6xl mx-auto">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="space-y-4">
           <Card className="shadow-md hover:shadow-lg transition-all duration-300">
           <CardHeader>
             <CardTitle className="text-lg font-medium flex items-center gap-2">
@@ -277,15 +292,37 @@ export function AcademicPeriodSelector() {
             </Button>
           </CardFooter>
           </Card>
+          
+          {isPeriodSaved && (
+            <HolidayManager 
+              currentSemester={currentSemester}
+              startDate={startDate}
+              endDate={endDate}
+              onHolidayAdded={handleHolidayAdded}
+            />
+          )}
         </div>
         
-        <Card className="w-full">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-center h-full min-h-[400px] text-muted-foreground">
-              <p>Content coming soon...</p>
-            </div>
-          </CardContent>
-        </Card>
+        <div>
+          {isPeriodSaved ? (
+            <HolidayList 
+              key={refreshKey}
+              currentSemester={currentSemester}
+              onRefresh={() => setRefreshKey(prev => prev + 1)}
+            />
+          ) : (
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-center h-full min-h-[400px] text-muted-foreground">
+                  <div className="text-center">
+                    <CalendarDays className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>Please save your academic period first to manage holidays</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </div>
     </div>
   );
