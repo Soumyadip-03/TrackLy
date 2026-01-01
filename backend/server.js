@@ -101,6 +101,7 @@ app.use('/api/notification', require('./routes/notification'));
 app.use('/api/chatbot', require('./routes/chatbot'));
 app.use('/api/uploads', require('./routes/uploads'));
 app.use('/api/project', require('./routes/project'));
+app.use('/api/holidays', require('./routes/holiday'));
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

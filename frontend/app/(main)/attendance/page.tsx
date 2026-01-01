@@ -35,7 +35,7 @@ export default function AttendancePage() {
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get('tab');
       
-      if (tabParam && ['record', 'auto-marked', 'calculator', 'settings'].includes(tabParam)) {
+      if (tabParam && ['academic-period', 'record', 'auto-marked', 'calculator'].includes(tabParam)) {
         setActiveTab(tabParam);
       }
     }
@@ -66,13 +66,19 @@ export default function AttendancePage() {
         />
         <WeeklyReportButton />
       </div>
-      <Tabs defaultValue="record" value={activeTab} onValueChange={setActiveTab}>
+      <Tabs defaultValue="academic-period" value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="academic-period">Academic Period</TabsTrigger>
           <TabsTrigger value="record">Record Attendance</TabsTrigger>
           <TabsTrigger value="auto-marked">Auto-Marked</TabsTrigger>
           <TabsTrigger value="calculator">Attendance Calculator</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="academic-period" className="mt-6">
+          <div className="max-w-2xl mx-auto">
+            <AcademicPeriodSelector />
+          </div>
+        </TabsContent>
 
         <TabsContent value="record" className="mt-6">
           <div className="max-w-6xl mx-auto">
@@ -92,12 +98,6 @@ export default function AttendancePage() {
               <AttendanceCalculator />
               <TargetAttendanceCalculator />
             </div>
-          </div>
-        </TabsContent>
-        
-        <TabsContent value="settings" className="mt-6">
-          <div className="max-w-2xl mx-auto">
-            <AcademicPeriodSelector />
           </div>
         </TabsContent>
       </Tabs>
