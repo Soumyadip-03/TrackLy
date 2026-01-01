@@ -186,19 +186,19 @@ export function AcademicPeriodSelector() {
   
   return (
     <div className="w-full h-full overflow-hidden">
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 h-full">
-        <div className="space-y-3 h-full flex flex-col overflow-hidden">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-2 h-full">
+        <div className="space-y-1.5 h-full flex flex-col overflow-hidden">
           <Card className="shadow-md hover:shadow-lg transition-all duration-300 flex-shrink-0">
-          <CardHeader className="pb-2">
+          <CardHeader className="pb-0 pt-3">
             <CardTitle className="text-lg font-medium flex items-center gap-2">
               <GraduationCap className="h-5 w-5 text-primary" />
               <span>Academic Period</span>
             </CardTitle>
-            <CardDescription>Set the start and end dates of your academic period</CardDescription>
+            <CardDescription className="text-sm">Set the start and end dates of your academic period</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-2 pb-2">
-            <div className="space-y-2">
-              <Label htmlFor="semester">Semester</Label>
+          <CardContent className="space-y-1 pb-1 pt-3">
+            <div className="space-y-1">
+              <Label htmlFor="semester" className="text-sm">Semester</Label>
               <Select value={currentSemester} onValueChange={handleSemesterChange}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select Semester" />
@@ -217,8 +217,8 @@ export function AcademicPeriodSelector() {
             </div>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <div className="space-y-2">
-                <Label htmlFor="startDate">Start Date</Label>
+              <div className="space-y-1">
+                <Label htmlFor="startDate" className="text-sm">Start Date</Label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
@@ -243,8 +243,8 @@ export function AcademicPeriodSelector() {
                 </Popover>
               </div>
               
-              <div className="space-y-2">
-                <Label htmlFor="endDate">End Date</Label>
+              <div className="space-y-1">
+                <Label htmlFor="endDate" className="text-sm">End Date</Label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
@@ -282,7 +282,7 @@ export function AcademicPeriodSelector() {
               </div>
             )}
           </CardContent>
-          <CardFooter className="pt-0 pb-2">
+          <CardFooter className="pt-2 pb-3">
             <Button 
               className="w-full" 
               onClick={handleSavePeriod}

@@ -61,7 +61,7 @@ export default function AttendancePage() {
     <div className="container mx-auto py-2 h-screen flex flex-col overflow-hidden">
       <div className="flex-1 min-h-0 overflow-hidden">
         <Tabs defaultValue="academic-period" value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
-          <TabsList className="grid w-full grid-cols-4 flex-shrink-0">
+          <TabsList className="w-full max-w-3xl mx-auto grid grid-cols-4 flex-shrink-0">
             <TabsTrigger value="academic-period">Academic Period</TabsTrigger>
             <TabsTrigger value="record">Record Attendance</TabsTrigger>
             <TabsTrigger value="auto-marked">Auto-Marked</TabsTrigger>

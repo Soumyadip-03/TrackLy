@@ -199,19 +199,19 @@ export function HolidayManager({ currentSemester, startDate, endDate, onHolidayA
 
   return (
     <Card className="h-full flex flex-col overflow-hidden">
-      <CardHeader className="pb-2 flex-shrink-0">
-        <CardTitle className="flex items-center gap-2">
+      <CardHeader className="pb-0 pt-3 flex-shrink-0">
+        <CardTitle className="flex items-center gap-2 text-lg font-medium">
           <Calendar className="h-5 w-5" />
           Holiday Management
         </CardTitle>
-        <CardDescription>
+        <CardDescription className="text-sm">
           Add holidays for {currentSemester ? `Semester ${currentSemester}` : 'current semester'}
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-2 flex-1 min-h-0 overflow-hidden">
+      <CardContent className="space-y-1.5 flex-1 min-h-0 overflow-hidden pt-3">
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1">
-            <Label>Month</Label>
+            <Label className="text-sm">Month</Label>
             <Select value={selectedMonth} onValueChange={setSelectedMonth}>
               <SelectTrigger>
                 <SelectValue placeholder="Select month" />
@@ -227,7 +227,7 @@ export function HolidayManager({ currentSemester, startDate, endDate, onHolidayA
           </div>
           
           <div className="space-y-1">
-            <Label>Day</Label>
+            <Label className="text-sm">Day</Label>
             <Select value={selectedDay} onValueChange={setSelectedDay} disabled={!selectedMonth}>
               <SelectTrigger>
                 <SelectValue placeholder="Select day" />
@@ -244,7 +244,7 @@ export function HolidayManager({ currentSemester, startDate, endDate, onHolidayA
         </div>
 
         <div className="space-y-1">
-          <Label>Reason (Optional)</Label>
+          <Label className="text-sm">Reason (Optional)</Label>
           <Input
             value={reason}
             onChange={(e) => setReason(e.target.value)}
