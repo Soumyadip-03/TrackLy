@@ -105,8 +105,8 @@ export function HolidayList({ currentSemester, onRefresh }: HolidayListProps) {
   })
 
   return (
-    <Card>
-      <CardHeader>
+    <Card className="h-full flex flex-col overflow-hidden">
+      <CardHeader className="pb-2 flex-shrink-0">
         <CardTitle className="flex items-center gap-2">
           <Calendar className="h-5 w-5" />
           Holiday List
@@ -115,20 +115,20 @@ export function HolidayList({ currentSemester, onRefresh }: HolidayListProps) {
           Manage holidays for Semester {currentSemester}
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex-1 min-h-0 overflow-hidden">
         {sortedHolidays.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
+          <div className="text-center py-4 text-muted-foreground">
+            <Calendar className="h-8 w-8 mx-auto mb-2 opacity-50" />
             <p>No holidays added yet</p>
           </div>
         ) : (
-          <div className="space-y-3 max-h-96 overflow-y-auto">
+          <div className="h-full overflow-y-auto space-y-2 pr-2">
             {sortedHolidays.map((holiday) => {
               const isPast = isDateInPast(holiday.day, holiday.month, holiday.year)
               return (
                 <div 
                   key={holiday.id} 
-                  className={`flex items-center justify-between p-3 border rounded-lg ${
+                  className={`flex items-center justify-between p-2 border rounded-lg ${
                     isPast ? 'bg-muted/50 opacity-75' : 'bg-background'
                   }`}
                 >
@@ -144,7 +144,7 @@ export function HolidayList({ currentSemester, onRefresh }: HolidayListProps) {
                       )}
                     </div>
                     {holiday.reason && (
-                      <p className="text-sm text-muted-foreground">{holiday.reason}</p>
+                      <p className="text-sm text-muted-foreground truncate">{holiday.reason}</p>
                     )}
                   </div>
                   <div className="flex gap-1">

@@ -165,7 +165,7 @@ export function AcademicPeriodSelector() {
   if (isLoading) {
     return (
       <div className="w-full">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           <Card className="shadow-md">
             <CardHeader>
               <CardTitle className="text-lg font-medium flex items-center gap-2">
@@ -178,25 +178,25 @@ export function AcademicPeriodSelector() {
               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
             </CardContent>
           </Card>
-          <Card className="w-full"></Card>
+          <Card className="w-full h-full"></Card>
         </div>
       </div>
     );
   }
   
   return (
-    <div className="w-full max-w-6xl mx-auto">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="space-y-4">
-          <Card className="shadow-md hover:shadow-lg transition-all duration-300">
-          <CardHeader>
+    <div className="w-full h-full overflow-hidden">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 h-full">
+        <div className="space-y-3 h-full flex flex-col overflow-hidden">
+          <Card className="shadow-md hover:shadow-lg transition-all duration-300 flex-shrink-0">
+          <CardHeader className="pb-2">
             <CardTitle className="text-lg font-medium flex items-center gap-2">
               <GraduationCap className="h-5 w-5 text-primary" />
               <span>Academic Period</span>
             </CardTitle>
             <CardDescription>Set the start and end dates of your academic period</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-2 pb-2">
             <div className="space-y-2">
               <Label htmlFor="semester">Semester</Label>
               <Select value={currentSemester} onValueChange={handleSemesterChange}>
@@ -216,7 +216,7 @@ export function AcademicPeriodSelector() {
               </Select>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div className="space-y-2">
                 <Label htmlFor="startDate">Start Date</Label>
                 <Popover>
@@ -272,7 +272,7 @@ export function AcademicPeriodSelector() {
             </div>
             
             {startDate && endDate && (
-              <div className="rounded-md bg-muted p-3 text-sm">
+              <div className="rounded-md bg-muted p-2 text-sm">
                 <div className="flex items-center">
                   <Clock className="h-4 w-4 mr-2 text-primary" />
                   <span className="text-muted-foreground">
@@ -282,7 +282,7 @@ export function AcademicPeriodSelector() {
               </div>
             )}
           </CardContent>
-          <CardFooter>
+          <CardFooter className="pt-0 pb-2">
             <Button 
               className="w-full" 
               onClick={handleSavePeriod}
@@ -294,16 +294,18 @@ export function AcademicPeriodSelector() {
           </Card>
           
           {isPeriodSaved && (
-            <HolidayManager 
-              currentSemester={currentSemester}
-              startDate={startDate}
-              endDate={endDate}
-              onHolidayAdded={handleHolidayAdded}
-            />
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <HolidayManager 
+                currentSemester={currentSemester}
+                startDate={startDate}
+                endDate={endDate}
+                onHolidayAdded={handleHolidayAdded}
+              />
+            </div>
           )}
         </div>
         
-        <div>
+        <div className="w-full h-full overflow-hidden">
           {isPeriodSaved ? (
             <HolidayList 
               key={refreshKey}
@@ -311,9 +313,9 @@ export function AcademicPeriodSelector() {
               onRefresh={() => setRefreshKey(prev => prev + 1)}
             />
           ) : (
-            <Card>
+            <Card className="h-full">
               <CardContent className="pt-6">
-                <div className="flex items-center justify-center h-full min-h-[400px] text-muted-foreground">
+                <div className="flex items-center justify-center h-full min-h-[200px] text-muted-foreground">
                   <div className="text-center">
                     <CalendarDays className="h-12 w-12 mx-auto mb-4 opacity-50" />
                     <p>Please save your academic period first to manage holidays</p>

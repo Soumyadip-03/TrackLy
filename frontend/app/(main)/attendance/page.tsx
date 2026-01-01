@@ -7,9 +7,7 @@ import { TargetAttendanceCalculator } from "@/components/attendance/target-atten
 import { AcademicPeriodSelector } from "@/components/attendance/academic-period-selector"
 import { AutoMarkedAttendance } from "@/components/dashboard/auto-marked-attendance"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { PageHeader } from "@/components/page-header"
 import { getFromLocalStorage } from "@/lib/storage-utils"
-import WeeklyReportButton from "@/components/attendance/weekly-report-button"
 
 // Record type
 interface AttendanceRecord {
@@ -60,49 +58,42 @@ export default function AttendancePage() {
   }, [])
 
   return (
-    <div className="container mx-auto py-6 space-y-8">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <PageHeader 
-          title="Attendance Tracking" 
-          description="Record and analyze your class attendance"
-        />
-        <WeeklyReportButton />
-      </div>
-      <Tabs defaultValue="academic-period" value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="academic-period">Academic Period</TabsTrigger>
-          <TabsTrigger value="record">Record Attendance</TabsTrigger>
-          <TabsTrigger value="auto-marked">Auto-Marked</TabsTrigger>
-          <TabsTrigger value="calculator">Attendance Calculator</TabsTrigger>
-        </TabsList>
+    <div className="container mx-auto py-2 h-screen flex flex-col overflow-hidden">
+      <div className="flex-1 min-h-0 overflow-hidden">
+        <Tabs defaultValue="academic-period" value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
+          <TabsList className="grid w-full grid-cols-4 flex-shrink-0">
+            <TabsTrigger value="academic-period">Academic Period</TabsTrigger>
+            <TabsTrigger value="record">Record Attendance</TabsTrigger>
+            <TabsTrigger value="auto-marked">Auto-Marked</TabsTrigger>
+            <TabsTrigger value="calculator">Attendance Calculator</TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="academic-period" className="mt-6">
-          <div className="max-w-2xl mx-auto">
+          <TabsContent value="academic-period" className="mt-2 flex-1 min-h-0 overflow-hidden">
             <AcademicPeriodSelector />
-          </div>
-        </TabsContent>
+          </TabsContent>
 
-        <TabsContent value="record" className="mt-6">
-          <div className="max-w-6xl mx-auto">
-            <VisualAttendanceForm />
-          </div>
-        </TabsContent>
-        
-        <TabsContent value="auto-marked" className="mt-6">
-          <div className="max-w-4xl mx-auto">
-            <AutoMarkedAttendance />
-          </div>
-        </TabsContent>
-        
-        <TabsContent value="calculator" className="mt-6">
-          <div className="max-w-4xl mx-auto">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <AttendanceCalculator />
-              <TargetAttendanceCalculator />
+          <TabsContent value="record" className="mt-2 flex-1 min-h-0 overflow-hidden">
+            <div className="max-w-6xl mx-auto h-full">
+              <VisualAttendanceForm />
             </div>
-          </div>
-        </TabsContent>
-      </Tabs>
+          </TabsContent>
+          
+          <TabsContent value="auto-marked" className="mt-2 flex-1 min-h-0 overflow-hidden">
+            <div className="max-w-4xl mx-auto h-full">
+              <AutoMarkedAttendance />
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="calculator" className="mt-2 flex-1 min-h-0 overflow-hidden">
+            <div className="max-w-4xl mx-auto h-full">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
+                <AttendanceCalculator />
+                <TargetAttendanceCalculator />
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   )
 } 
