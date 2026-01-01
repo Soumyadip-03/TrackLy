@@ -23,8 +23,8 @@ interface AcademicSettingsData {
 export function AcademicSettings() {
   const defaultSettings: AcademicSettingsData = {
     attendanceReminders: true,
-    attendanceThreshold: "85",
-    attendanceReminderFrequency: "weekly",
+    attendanceThreshold: "75",
+    attendanceReminderFrequency: "never",
     todoReminders: true,
     todoReminderTime: "1",
     priorityTodosOnly: false,
@@ -45,10 +45,14 @@ export function AcademicSettings() {
     setSettings((prev) => {
       const newSettings = { ...prev, [name]: !prev[name as keyof typeof prev] }
       
-      // Auto-save
+      // Auto-save to localStorage
       const existingSettings = getFromLocalStorage<any>('notification_settings', {})
       const updatedSettings = { ...existingSettings, ...newSettings }
       saveToLocalStorage('notification_settings', updatedSettings)
+      
+      // Save to backend
+      saveToBackend(newSettings)
+      
       window.dispatchEvent(new CustomEvent('settingsUpdated'))
       
       return newSettings
@@ -59,14 +63,46 @@ export function AcademicSettings() {
     setSettings((prev) => {
       const newSettings = { ...prev, [name]: value }
       
-      // Auto-save
+      // Auto-save to localStorage
       const existingSettings = getFromLocalStorage<any>('notification_settings', {})
       const updatedSettings = { ...existingSettings, ...newSettings }
       saveToLocalStorage('notification_settings', updatedSettings)
+      
+      // Save to backend
+      saveToBackend(newSettings)
+      
       window.dispatchEvent(new CustomEvent('settingsUpdated'))
       
       return newSettings
     })
+  }
+
+  const saveToBackend = async (newSettings: Partial<AcademicSettingsData>) => {
+    try {
+      const token = localStorage.getItem('trackly_token')
+      const response = await fetch('http://localhost:5000/api/user/notification-preferences', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(newSettings)
+      })
+      
+      if (response.ok) {
+        toast({
+          title: "Settings Saved",
+          description: "Academic preferences updated successfully.",
+        })
+      }
+    } catch (error) {
+      console.error('Error saving to backend:', error)
+      toast({
+        title: "Save Failed",
+        description: "Could not save settings. Please try again.",
+        variant: "destructive"
+      })
+    }
   }
 
   const handleSave = () => {
@@ -124,11 +160,11 @@ export function AcademicSettings() {
                 <SelectValue placeholder="Select" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="50">50%</SelectItem>
+                <SelectItem value="60">60%</SelectItem>
                 <SelectItem value="75">75%</SelectItem>
                 <SelectItem value="80">80%</SelectItem>
-                <SelectItem value="85">85%</SelectItem>
                 <SelectItem value="90">90%</SelectItem>
-                <SelectItem value="95">95%</SelectItem>
               </SelectContent>
             </Select>
           </div>

@@ -192,6 +192,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     initializeAuth()
   }, [checkConnection])
 
+  // Listen for profile picture updates
+  useEffect(() => {
+    const handleProfilePictureUpdate = () => {
+      console.log('Profile picture update event received in auth context');
+      const storedUser = localStorage.getItem('trackly_user')
+      if (storedUser) {
+        try {
+          const userData = JSON.parse(storedUser)
+          console.log('Updating user with new profile picture:', userData.profilePicture);
+          setUser(userData)
+        } catch (e) {
+          console.error('Error parsing updated user:', e)
+        }
+      }
+    }
+
+    window.addEventListener('profilePictureUpdated', handleProfilePictureUpdate)
+    return () => window.removeEventListener('profilePictureUpdated', handleProfilePictureUpdate)
+  }, [])
+
   const signUp = async (email: string, password: string, name?: string, studentId?: string, currentSemester?: number) => {
     try {
       setIsLoading(true)
@@ -298,20 +318,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signOut = async () => {
     try {
-      localStorage.removeItem('trackly_token')
-      localStorage.removeItem('trackly_user')
-      deleteCookie('trackly_token')
-      deleteCookie('user-id')
-      clearUserData()
+      // Clear all localStorage data
+      localStorage.clear();
       
-      setUser(null)
-      setIsAuthenticated(false)
-      router.push('/login')
+      // Clear cookies
+      deleteCookie('trackly_token');
+      deleteCookie('user-id');
+      
+      setUser(null);
+      setIsAuthenticated(false);
+      router.push('/login');
     } catch (error) {
-      console.error('Sign out error:', error)
-      setUser(null)
-      setIsAuthenticated(false)
-      router.push('/login')
+      console.error('Sign out error:', error);
+      setUser(null);
+      setIsAuthenticated(false);
+      router.push('/login');
     }
   }
 

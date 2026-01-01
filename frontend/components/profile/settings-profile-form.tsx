@@ -170,19 +170,25 @@ export function SettingsProfileForm({ onUpdateAction }: ProfileFormProps) {
 
         const result = await response.json();
         const newProfilePicture = result.profilePicture;
-        setProfileData(prev => ({ ...prev, profilePicture: newProfilePicture }));
+        
+        // Ensure the path starts with /
+        const formattedPath = newProfilePicture.startsWith('/') ? newProfilePicture : `/${newProfilePicture}`;
+        
+        setProfileData(prev => ({ ...prev, profilePicture: formattedPath }));
         setSelectedFile(null);
         setPreviewUrl("");
         
         // Update user in localStorage
         const storedUser = localStorage.getItem('trackly_user');
         if (storedUser) {
-          const updatedUser = { ...JSON.parse(storedUser), profilePicture: newProfilePicture };
+          const updatedUser = { ...JSON.parse(storedUser), profilePicture: formattedPath };
           localStorage.setItem('trackly_user', JSON.stringify(updatedUser));
+          console.log('Updated user in localStorage:', updatedUser);
         }
         
         // Dispatch event to notify sidebar
         window.dispatchEvent(new Event('profilePictureUpdated'));
+        console.log('Profile picture updated event dispatched');
       }
 
       // Update semester

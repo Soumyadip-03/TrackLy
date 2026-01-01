@@ -26,6 +26,8 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "@/components/ui/use-toast"
 import { getFromLocalStorage, saveToLocalStorage } from "@/lib/storage-utils"
+import { subjectService } from "@/lib/services/subject-service"
+import { fetchWithAuth } from "@/lib/api"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -66,17 +68,48 @@ export function SettingsScheduleUploader({ onUpdateAction }: ScheduleUploaderPro
 
   const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
-  // Load schedule, off days, and subjects from localStorage
+  // Load schedule from database on mount
   useEffect(() => {
-    const savedSchedule = getFromLocalStorage<ScheduleData>('schedule', { classes: [] });
-    const savedOffDays = getFromLocalStorage<string[]>('schedule_off_days', []);
-    const savedSubjects = getFromLocalStorage<any[]>('subjects', []);
-    
-    // Ensure schedule is always an array, never undefined
-    setSchedule(savedSchedule && savedSchedule.classes ? savedSchedule : { classes: [] });
-    setOffDays(Array.isArray(savedOffDays) ? savedOffDays : []);
-    setSubjects(Array.isArray(savedSubjects) ? savedSubjects.map(s => ({ name: s.name, classType: s.classType || "none" })) : []);
+    loadScheduleFromDB();
+    loadSubjects();
   }, []);
+
+  const loadSubjects = async () => {
+    try {
+      const data = await subjectService.getAll();
+      setSubjects(data.map(s => ({ name: s.name, classType: s.classType || "none" })));
+    } catch (error) {
+      console.error('Failed to load subjects:', error);
+    }
+  };
+
+  const loadScheduleFromDB = async () => {
+    try {
+      const response = await fetchWithAuth('/schedule');
+      if (response.ok) {
+        const data = await response.json();
+        setSchedule(data.data || { classes: [] });
+        setOffDays(data.data?.offDays || []);
+      }
+    } catch (error) {
+      console.error('Failed to load schedule:', error);
+    }
+  };
+
+  const saveScheduleToDB = async (scheduleData: ScheduleData, offDaysData?: string[]) => {
+    try {
+      await fetchWithAuth('/schedule', {
+        method: 'POST',
+        body: JSON.stringify({ classes: scheduleData.classes, offDays: offDaysData || offDays })
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to save schedule.",
+        variant: "destructive"
+      });
+    }
+  };
 
   // Update parent when schedule or off days change
   useEffect(() => {
@@ -150,9 +183,8 @@ export function SettingsScheduleUploader({ onUpdateAction }: ScheduleUploaderPro
     };
     
     setSchedule(updatedSchedule);
-    saveToLocalStorage('schedule', updatedSchedule);
+    saveScheduleToDB(updatedSchedule);
     
-    // Reset the form
     setNewEntry({
       day: "",
       subject: "",
@@ -171,7 +203,7 @@ export function SettingsScheduleUploader({ onUpdateAction }: ScheduleUploaderPro
 
   const handleSaveEdit = (id: string) => {
     setEditingId(null);
-    saveToLocalStorage('schedule', schedule);
+    saveScheduleToDB(schedule);
     
     toast({
       title: "Class Updated",
@@ -188,7 +220,7 @@ export function SettingsScheduleUploader({ onUpdateAction }: ScheduleUploaderPro
     };
     
     setSchedule(updatedSchedule);
-    saveToLocalStorage('schedule', updatedSchedule);
+    saveScheduleToDB(updatedSchedule);
     
     toast({
       title: "Class Removed",
@@ -201,34 +233,26 @@ export function SettingsScheduleUploader({ onUpdateAction }: ScheduleUploaderPro
     
     if (!classToCopy) return;
     
-    // Calculate next time slot
     let newStartTime = classToCopy.endTime;
     let newEndTime = "";
     
-    // If we have both start and end times, calculate the next slot with the same duration
     if (classToCopy.startTime && classToCopy.endTime) {
-      // Parse the times to calculate duration
       const [startHours, startMinutes] = classToCopy.startTime.split(':').map(Number);
       const [endHours, endMinutes] = classToCopy.endTime.split(':').map(Number);
       
-      // Calculate duration in minutes
       const startTotalMinutes = startHours * 60 + startMinutes;
       const endTotalMinutes = endHours * 60 + endMinutes;
       const durationMinutes = endTotalMinutes - startTotalMinutes;
       
-      // Calculate new end time
-      const newStartTotalMinutes = endTotalMinutes; // Start from the previous end time
+      const newStartTotalMinutes = endTotalMinutes;
       const newEndTotalMinutes = newStartTotalMinutes + durationMinutes;
       
-      // Convert back to HH:MM format
       const newEndHours = Math.floor(newEndTotalMinutes / 60);
       const newEndMinutes = newEndTotalMinutes % 60;
       
-      // Format with leading zeros if needed
       newEndTime = `${newEndHours.toString().padStart(2, '0')}:${newEndMinutes.toString().padStart(2, '0')}`;
     }
     
-    // Create a new class with a new ID and adjusted time slots
     const newClass: ClassEntry = {
       ...classToCopy,
       id: Math.random().toString(36).substring(2, 9),
@@ -242,7 +266,7 @@ export function SettingsScheduleUploader({ onUpdateAction }: ScheduleUploaderPro
     };
     
     setSchedule(updatedSchedule);
-    saveToLocalStorage('schedule', updatedSchedule);
+    saveScheduleToDB(updatedSchedule);
     
     toast({
       title: "Class Copied",
@@ -383,20 +407,17 @@ export function SettingsScheduleUploader({ onUpdateAction }: ScheduleUploaderPro
     );
   };
 
-  // Add a function to toggle off day status
   const toggleOffDay = (day: string) => {
     let updatedOffDays: string[];
     
     if (offDays.includes(day)) {
-      // Remove from off days
       updatedOffDays = offDays.filter(d => d !== day);
     } else {
-      // Add to off days
       updatedOffDays = [...offDays, day];
     }
     
     setOffDays(updatedOffDays);
-    saveToLocalStorage('schedule_off_days', updatedOffDays);
+    saveScheduleToDB(schedule, updatedOffDays);
     
     toast({
       title: offDays.includes(day) ? "Off Day Removed" : "Off Day Set",
@@ -419,27 +440,30 @@ export function SettingsScheduleUploader({ onUpdateAction }: ScheduleUploaderPro
     }
   }, [newEntry.subject]);
 
-  // Add clear schedule function
-  const handleClearSchedule = () => {
-    // Show confirmation dialog before clearing
-    if (window.confirm("Are you sure you want to clear your entire schedule? This will also remove all associated subject data. This action cannot be undone.")) {
-      // Clear schedule
+  const handleClearSchedule = async () => {
+    if (window.confirm("Are you sure you want to clear your entire schedule? This action cannot be undone.")) {
       const emptySchedule: ScheduleData = { classes: [] };
       setSchedule(emptySchedule);
       setOffDays([]);
       
-      // Clear localStorage - these will be automatically namespaced with user ID
-      saveToLocalStorage('schedule', emptySchedule);
-      saveToLocalStorage('schedule_off_days', []);
-      saveToLocalStorage('subjects', []);
-      
-      // Notify parent component
-      onUpdateAction(emptySchedule);
-      
-      toast({
-        title: "Schedule Cleared",
-        description: "Your entire schedule and associated subject data have been removed.",
-      });
+      try {
+        await fetchWithAuth('/schedule', {
+          method: 'DELETE'
+        });
+        
+        onUpdateAction(emptySchedule);
+        
+        toast({
+          title: "Schedule Cleared",
+          description: "Your schedule has been cleared.",
+        });
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "Failed to clear schedule.",
+          variant: "destructive"
+        });
+      }
     }
   };
 
@@ -635,12 +659,9 @@ export function SettingsScheduleUploader({ onUpdateAction }: ScheduleUploaderPro
       </CardContent>
       <CardFooter className="flex justify-between">
         <div>
-          <p className="text-sm text-muted-foreground">
-            Your schedule is automatically saved to your device
-          </p>
           <Button 
             variant="outline"
-            className="mt-2 text-red-500 hover:text-red-700 hover:bg-red-50"
+            className="text-red-500 hover:text-red-700 hover:bg-red-50"
             onClick={handleClearSchedule}
           >
             Clear Schedule
@@ -648,132 +669,87 @@ export function SettingsScheduleUploader({ onUpdateAction }: ScheduleUploaderPro
         </div>
         <div className="space-x-2">
           <Button 
-            variant="outline" 
-            onClick={() => {
-              const classCount = schedule.classes.length;
-              const offDayCount = offDays.length;
-              toast({
-                title: "Schedule Saved",
-                description: `You have ${classCount} classes and ${offDayCount} off days in your weekly schedule.`
-              });
-            }}
-          >
-            <Save className="mr-2 h-4 w-4" /> Save Schedule
-          </Button>
-          <Button 
             variant="default"
-            onClick={() => {
-              // Extract unique subject-classType combinations from the schedule (excluding breaks)
-              const subjectMap = new Map();
-              
-              // First, collect all unique subjects
-              schedule.classes.forEach(cls => {
-                // Skip classes with break type
-                if (cls.classType === "break") return;
+            onClick={async () => {
+              try {
+                const subjectMap = new Map();
                 
-                const subjectLower = cls.subject.toLowerCase();
-                
-                if (!subjectMap.has(subjectLower)) {
-                  subjectMap.set(subjectLower, {
-                    name: cls.subject.toUpperCase(),
-                    classTypes: new Map()
-                  });
-                }
-              });
-              
-              // Then, for each subject, count classes by class type
-              subjectMap.forEach((subjectData, subjectKey) => {
-                // For each unique subject, count occurrences by class type
                 schedule.classes.forEach(cls => {
                   if (cls.classType === "break") return;
-                  if (cls.subject.toLowerCase() !== subjectKey) return;
+                  
+                  const subjectLower = cls.subject.toLowerCase();
+                  
+                  if (!subjectMap.has(subjectLower)) {
+                    subjectMap.set(subjectLower, {
+                      name: cls.subject.toUpperCase(),
+                      classTypes: new Map()
+                    });
+                  }
                   
                   const classType = cls.classType || "none";
+                  const subjectData = subjectMap.get(subjectLower);
                   
                   if (!subjectData.classTypes.has(classType)) {
-                    subjectData.classTypes.set(classType, {
-                      count: 1,
-                      type: classType
-                    });
+                    subjectData.classTypes.set(classType, 1);
                   } else {
-                    const typeData = subjectData.classTypes.get(classType);
-                    typeData.count++;
+                    subjectData.classTypes.set(classType, subjectData.classTypes.get(classType) + 1);
                   }
                 });
-              });
-              
-              // Now convert to uniqueSubjects map with the right format
-              const uniqueSubjects = new Map();
-              
-              subjectMap.forEach((subjectData, subjectKey) => {
-                let totalClasses = 0;
-                let primaryClassType = "none";
-                let maxClassTypeCount = 0;
                 
-                // Find the most common class type for this subject
-                subjectData.classTypes.forEach((typeData: ClassTypeData, classType: string) => {
-                  totalClasses += typeData.count;
+                const existingSubjects = await subjectService.getAll();
+                const existingMap = new Map(
+                  existingSubjects.map(s => [s.name.toLowerCase(), s])
+                );
+                
+                let created = 0;
+                let updated = 0;
+                
+                for (const [key, data] of subjectMap) {
+                  let totalClasses = 0;
+                  let primaryClassType = "none";
+                  let maxCount = 0;
                   
-                  if (typeData.count > maxClassTypeCount) {
-                    maxClassTypeCount = typeData.count;
-                    primaryClassType = classType;
+                  data.classTypes.forEach((count: number, type: string) => {
+                    totalClasses += count;
+                    if (count > maxCount) {
+                      maxCount = count;
+                      primaryClassType = type;
+                    }
+                  });
+                  
+                  const existing = existingMap.get(key);
+                  
+                  if (existing) {
+                    await subjectService.update(existing._id, {
+                      classesPerWeek: totalClasses,
+                      classType: existing.classType === "none" ? primaryClassType : existing.classType
+                    });
+                    updated++;
+                  } else {
+                    await subjectService.create({
+                      name: data.name,
+                      code: "",
+                      classType: primaryClassType,
+                      classesPerWeek: totalClasses,
+                      semester: 1
+                    });
+                    created++;
                   }
+                }
+                
+                toast({
+                  title: "Uploaded to Subjects",
+                  description: `Created ${created} new, updated ${updated} existing.`
                 });
                 
-                uniqueSubjects.set(subjectKey, {
-                  name: subjectData.name,
-                  classType: primaryClassType,
-                  count: totalClasses,
-                  classTypeBreakdown: Object.fromEntries(subjectData.classTypes)
+                await loadSubjects();
+              } catch (error) {
+                toast({
+                  title: "Error",
+                  description: "Failed to upload subjects.",
+                  variant: "destructive"
                 });
-              });
-              
-              // Get existing subjects from localStorage
-              const savedSubjects = getFromLocalStorage<Subject[]>('subjects', []);
-              const existingSubjectMap = new Map(
-                savedSubjects.map(s => [s.name.toLowerCase(), s])
-              );
-              
-              // Merge new subjects with existing ones
-              const updatedSubjects: Subject[] = [...savedSubjects];
-              
-              // Update existing subjects with new data
-              uniqueSubjects.forEach((data: any, key: string) => {
-                if (existingSubjectMap.has(key)) {
-                  // Update existing subject
-                  const index = updatedSubjects.findIndex(
-                    s => s.name.toLowerCase() === key
-                  );
-                  if (index !== -1) {
-                    updatedSubjects[index] = {
-                      ...updatedSubjects[index],
-                      classesPerWeek: data.count,
-                      // Only update class type if not already set
-                      classType: updatedSubjects[index].classType === "none" ? 
-                                data.classType : updatedSubjects[index].classType
-                    };
-                  }
-                } else {
-                  // Add new subject
-                  updatedSubjects.push({
-                    id: Math.random().toString(36).substring(2, 9),
-                    name: data.name,
-                    code: "", // User will need to fill this in
-                    classType: data.classType,
-                    classesPerWeek: data.count
-                  });
-                }
-              });
-              
-              // Save updated subjects to localStorage
-              saveToLocalStorage('subjects', updatedSubjects);
-              
-              const newSubjectsCount = uniqueSubjects.size - existingSubjectMap.size;
-              
-              toast({
-                title: "Schedule Uploaded to Subjects",
-                description: `Updated ${existingSubjectMap.size} subjects and added ${newSubjectsCount > 0 ? newSubjectsCount : 0} new subjects.`
-              });
+              }
             }}
           >
             <BookOpen className="mr-2 h-4 w-4" /> Upload to Subjects

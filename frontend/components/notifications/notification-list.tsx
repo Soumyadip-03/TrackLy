@@ -222,32 +222,28 @@ export function NotificationList() {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
-        <div>
-          <CardTitle className="flex items-center gap-2">
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="h-8 w-8 rounded-full hover:bg-primary/10" 
-              onClick={generateNotifications}
-              disabled={isGenerating}
-              title="Refresh notifications"
-            >
-              <RefreshCw className={cn("h-4 w-4 text-primary", isGenerating && "animate-spin")} />
-            </Button>
-          </CardTitle>
-          <CardDescription>
-            {unreadCount > 0 
-              ? `You have ${unreadCount} unread notification${unreadCount !== 1 ? "s" : ""}`
-              : "No new notifications"
-            }
-          </CardDescription>
-        </div>
+        <CardDescription>
+          {unreadCount > 0 
+            ? `You have ${unreadCount} unread notification${unreadCount !== 1 ? "s" : ""}`
+            : "No new notifications"
+          }
+        </CardDescription>
         <div className="flex space-x-2">
           <Button variant="outline" size="sm" onClick={handleMarkAllAsRead} disabled={unreadCount === 0}>
             Mark All Read
           </Button>
           <Button variant="outline" size="sm" onClick={handleClearAll} disabled={notifications.length === 0}>
             Clear All
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="h-9 w-9 rounded-full hover:bg-primary/10" 
+            onClick={generateNotifications}
+            disabled={isGenerating}
+            title="Refresh notifications"
+          >
+            <RefreshCw className={cn("h-4 w-4 text-primary", isGenerating && "animate-spin")} />
           </Button>
         </div>
       </CardHeader>
@@ -298,15 +294,6 @@ export function NotificationList() {
             <div className="text-center py-8">
               <Bell className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
               <p className="text-muted-foreground">No notifications to display</p>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="mt-4"
-                onClick={generateNotifications}
-                disabled={isGenerating}
-              >
-                {isGenerating ? "Generating..." : "Generate Notifications"}
-              </Button>
             </div>
           )}
         </div>

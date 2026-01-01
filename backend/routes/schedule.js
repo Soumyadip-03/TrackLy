@@ -27,13 +27,13 @@ router.get('/', protect, async (req, res) => {
 // @access  Private
 router.post('/', protect, async (req, res) => {
   try {
-    const { classes } = req.body;
+    const { classes, offDays } = req.body;
 
     const userInfo = await req.userDb.models.UserInfo.findOneAndUpdate(
       { mainUserId: req.user.id },
       { 
         $set: { 
-          schedule: { classes: classes || [] }
+          schedule: { classes: classes || [], offDays: offDays || [] }
         }
       },
       { upsert: true, new: true }

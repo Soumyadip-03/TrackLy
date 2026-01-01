@@ -259,15 +259,11 @@ export function SettingsSubjectList({ onUpdateAction }: SubjectListProps) {
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
+      <CardHeader>
         <div>
           <CardTitle>Subject List</CardTitle>
           <CardDescription>Manage your semester subjects</CardDescription>
         </div>
-        <Button onClick={handleAddNew} disabled={isAddingNew}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Subject
-        </Button>
       </CardHeader>
       <CardContent>
         {isLoading ? (
@@ -377,79 +373,10 @@ export function SettingsSubjectList({ onUpdateAction }: SubjectListProps) {
           </div>
         ) : (
           <div className="text-center py-12 text-muted-foreground">
-            <p>No subjects added yet. Add your first subject to get started.</p>
+            <p>No subjects added yet. Use "Upload to Subjects" from the Schedule tab.</p>
           </div>
         )}
 
-        {isAddingNew && (
-          <Card className="mt-4">
-            <CardHeader>
-              <CardTitle>Add New Subject</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="name">Subject Name</Label>
-                  <Input
-                    id="name"
-                    name="name"
-                    placeholder="Subject Name"
-                    value={newSubject.name || ""}
-                    onChange={handleNewSubjectChange}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="code">Subject Code</Label>
-                  <Input
-                    id="code"
-                    name="code"
-                    placeholder="Subject Code"
-                    value={newSubject.code || ""}
-                    onChange={handleNewSubjectChange}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="classType">Class Type</Label>
-                  <Select 
-                    value={newSubject.classType} 
-                    onValueChange={handleNewSubjectSelectChange}
-                  >
-                    <SelectTrigger id="classType" className="w-full">
-                      <SelectValue placeholder="Select type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">NOT SPECIFIED</SelectItem>
-                      <SelectItem value="lecture">LECTURE</SelectItem>
-                      <SelectItem value="lab">LAB</SelectItem>
-                      <SelectItem value="tutorial">TUTORIAL</SelectItem>
-                      <SelectItem value="seminar">SEMINAR</SelectItem>
-                      <SelectItem value="workshop">WORKSHOP</SelectItem>
-                      <SelectItem value="sports">SPORTS</SelectItem>
-                      <SelectItem value="yoga">YOGA</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="classesPerWeek">Classes Per Week</Label>
-                  <Input
-                    id="classesPerWeek"
-                    name="classesPerWeek"
-                    type="number"
-                    placeholder="0"
-                    value={newSubject.classesPerWeek || ""}
-                    onChange={handleNewSubjectChange}
-                  />
-                </div>
-              </div>
-              <div className="mt-4 flex justify-end space-x-2">
-                <Button variant="outline" onClick={handleCancelAdd}>Cancel</Button>
-                <Button onClick={handleSaveNewSubject}>
-                  <Save className="h-4 w-4 mr-2" /> Save Subject
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
       </CardContent>
       
       {/* Add Clear All button in footer */}

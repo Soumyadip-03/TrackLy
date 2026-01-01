@@ -223,7 +223,7 @@ export function AppSidebar() {
               {user && (
                 <div className="mt-2 pt-2 border-t border-border/60 flex items-center gap-2">
                   <Avatar className="h-8 w-8">
-                    <AvatarImage src={profilePicture} />
+                    {profilePicture && <AvatarImage src={profilePicture} />}
                     <AvatarFallback>{user.name?.[0] || user.email?.[0] || 'U'}</AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
@@ -243,7 +243,7 @@ export function AppSidebar() {
           {user && (
             <div className="fixed left-2 bottom-2 z-40 flex flex-col items-center gap-1">
               <Avatar className="h-12 w-12 border-2 border-primary">
-                <AvatarImage src={profilePicture} />
+                {profilePicture && <AvatarImage src={profilePicture} />}
                 <AvatarFallback>{user.name?.[0] || user.email?.[0] || 'U'}</AvatarFallback>
               </Avatar>
               

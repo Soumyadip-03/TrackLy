@@ -4,8 +4,8 @@ const { body, validationResult } = require('express-validator');
 const Attendance = require('../models/Attendance');
 const Subject = require('../models/Subject');
 const User = require('../models/User');
-const Notification = require('../models/Notification');
 const { protect } = require('../middleware/auth');
+const { createNotification } = require('../utils/notificationHelper');
 
 // @desc    Mark attendance (whole day)
 // @route   POST /api/attendance/whole-day
@@ -28,7 +28,7 @@ router.post(
       const userId = req.user.id;
 
       // Get all subjects for this user
-      const subjects = await req.userDb.models.Subject.find();
+      const subjects = await Subject.find({ user: userId });
 
       if (subjects.length === 0) {
         return res.status(400).json({
@@ -65,7 +65,8 @@ router.post(
 
       for (const subject of subjectsOnDay) {
         // Check if attendance record already exists
-        let attendance = await req.userDb.models.Attendance.findOne({
+        let attendance = await Attendance.findOne({
+          user: userId,
           subject: subject._id,
           date: formattedDate
         });
@@ -77,7 +78,8 @@ router.post(
           await attendance.save();
         } else {
           // Create new record
-          attendance = await req.userDb.models.Attendance.create({
+          attendance = await Attendance.create({
+            user: userId,
             subject: subject._id,
             date: formattedDate,
             status,
@@ -93,7 +95,24 @@ router.post(
         }
         
         subject.totalClasses += 1;
+        const attendancePercentage = subject.getAttendancePercentage();
         await subject.save();
+
+        // Check for low attendance warning - use user's threshold setting
+        const user = await User.findById(userId);
+        const attendanceSettings = user.notificationPreferences?.attendanceReminders !== false;
+        const threshold = parseInt(user.notificationPreferences?.attendanceThreshold || '75');
+        
+        if (attendanceSettings && attendancePercentage < threshold && attendancePercentage > 0) {
+          await createNotification({
+            userId,
+            title: 'Low Attendance Warning',
+            message: `Your attendance in ${subject.name} is ${attendancePercentage.toFixed(1)}%. Attend more classes to maintain ${threshold}% attendance.`,
+            type: 'alert',
+            category: 'attendance',
+            priority: 'high'
+          });
+        }
 
         // For absent records, we'll deduct points
         if (status === 'absent') {
@@ -108,10 +127,13 @@ router.post(
         await user.save();
 
         // Create notification for point deduction
-        await req.userDb.models.Notification.create({
+        await createNotification({
+          userId,
           title: 'Points Deducted',
           message: `You've lost ${points} points for marking absence on ${new Date(date).toLocaleDateString()}.`,
-          type: 'point'
+          type: 'alert',
+          category: 'points',
+          priority: 'medium'
         });
       }
 
@@ -152,7 +174,7 @@ router.post(
       const userId = req.user.id;
 
       // Check if subject exists and belongs to user
-      const subject = await req.userDb.models.Subject.findById(subjectId);
+      const subject = await Subject.findOne({ _id: subjectId, user: userId });
 
       if (!subject) {
         return res.status(404).json({
@@ -166,7 +188,8 @@ router.post(
       formattedDate.setHours(0, 0, 0, 0);
 
       // Check if attendance record already exists
-      let attendance = await req.userDb.models.Attendance.findOne({
+      let attendance = await Attendance.findOne({
+        user: userId,
         subject: subjectId,
         date: formattedDate
       });
@@ -178,7 +201,8 @@ router.post(
         await attendance.save();
       } else {
         // Create new record
-        attendance = await req.userDb.models.Attendance.create({
+        attendance = await Attendance.create({
+          user: userId,
           subject: subjectId,
           date: formattedDate,
           status,
@@ -192,20 +216,37 @@ router.post(
       }
       
       subject.totalClasses += 1;
+      const attendancePercentage = subject.getAttendancePercentage();
       await subject.save();
 
-      // Deduct points for using per-subject calculator (2 points per use)
+      // Check for low attendance warning - use user's threshold setting
       const user = await User.findById(userId);
+      const attendanceSettings = user.notificationPreferences?.attendanceReminders !== false;
+      const threshold = parseInt(user.notificationPreferences?.attendanceThreshold || '75');
+      
+      if (attendanceSettings && attendancePercentage < threshold && attendancePercentage > 0) {
+        await createNotification({
+          userId,
+          title: 'Low Attendance Warning',
+          message: `Your attendance in ${subject.name} is ${attendancePercentage.toFixed(1)}%. Attend more classes to maintain ${threshold}% attendance.`,
+          type: 'alert',
+          category: 'attendance',
+          priority: 'high'
+        });
+      }
+
+      // Deduct points for using per-subject calculator (2 points per use)
       user.points = Math.max(0, user.points - 2);
       await user.save();
 
       // Create notification for point deduction
-      await req.userDb.models.Notification.create({
+      await createNotification({
+        userId,
         title: 'Points Deducted',
         message: `You've lost 2 points for using the Per Subject Calculator for ${subject.name}.`,
-        type: 'point',
-        relatedTo: subject._id,
-        onModel: 'Subject'
+        type: 'alert',
+        category: 'points',
+        priority: 'low'
       });
 
       res.status(201).json({
@@ -231,7 +272,7 @@ router.get('/stats', protect, async (req, res) => {
     const userId = req.user.id;
 
     // Get all subjects
-    const subjects = await req.userDb.models.Subject.find();
+    const subjects = await Subject.find({ user: userId });
     
     // Calculate overall attendance percentage
     let totalClasses = 0;
@@ -289,7 +330,7 @@ router.get('/stats', protect, async (req, res) => {
 router.get('/history', protect, async (req, res) => {
   try {
     // Get attendance records with subject details
-    const history = await req.userDb.models.Attendance.find()
+    const history = await Attendance.find({ user: userId })
       .populate('subject', 'name code')
       .sort({ date: -1 });
 
@@ -330,7 +371,8 @@ router.get('/range', protect, async (req, res) => {
     end.setHours(23, 59, 59, 999);
 
     // Get attendance within date range
-    const history = await req.userDb.models.Attendance.find({
+    const history = await Attendance.find({
+      user: userId,
       date: { $gte: start, $lte: end }
     })
       .populate('subject', 'name code')

@@ -162,7 +162,7 @@ export function LoginHistory() {
             ) : (
               <ScrollArea className="h-full">
                 <div className="space-y-4 pr-4">
-                  {emailHistory.map((email, index) => (
+                  {emailHistory.slice().sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime()).map((email, index) => (
                     <div 
                       key={index} 
                       className="flex flex-col space-y-1 border-b pb-3 last:border-0"
@@ -173,16 +173,16 @@ export function LoginHistory() {
                           {formatDate(email.sentAt)} {formatTime(email.sentAt)}
                         </div>
                       </div>
-                      <div className="text-sm text-muted-foreground capitalize">
-                        Type: {email.type} • Status: {email.status}
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-muted-foreground capitalize">Type: {email.emailType}</span>
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded ${
+                          email.status === 'sent' 
+                            ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
+                            : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'
+                        }`}>
+                          {email.status}
+                        </span>
                       </div>
-                      {email.details && (
-                        <div className="text-xs text-muted-foreground">
-                          {email.details.ipAddress && `IP: ${email.details.ipAddress}`}
-                          {email.details.device && ` • Device: ${email.details.device}`}
-                          {email.details.browser && ` • Browser: ${email.details.browser}`}
-                        </div>
-                      )}
                     </div>
                   ))}
                 </div>

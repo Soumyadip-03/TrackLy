@@ -31,15 +31,20 @@ export default function AboutPage() {
 ]
 
   return (
-    <div className="container py-6 space-y-6">
-      <div className="py-6"></div>
-      <Tabs defaultValue="system" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
+    <div className="flex flex-col h-screen overflow-hidden">
+      <div className="container py-6"></div>
+      <div className="flex-1 overflow-hidden">
+        <Tabs defaultValue="system" className="h-full flex flex-col">
+          <div className="container">
+            <TabsList className="w-full max-w-3xl mx-auto grid grid-cols-4">
           <TabsTrigger value="system">About System</TabsTrigger>
           <TabsTrigger value="features">Usage guide</TabsTrigger>
           <TabsTrigger value="ai">AI Assistant</TabsTrigger>
           <TabsTrigger value="creators">Creators</TabsTrigger>
-        </TabsList>
+            </TabsList>
+          </div>
+          <div className="flex-1 overflow-y-auto mt-6">
+            <div className="container pb-6">
 
         <TabsContent value="system" className="space-y-4">
           <div className="space-y-6">
@@ -69,15 +74,19 @@ export default function AboutPage() {
                     </li>
                     <li className="flex items-start">
                       <CheckCircle className="mr-2 h-4 w-4 text-green-500" />
-                      <span>Absence planning with impact calculation</span>
+                      <span>Visual attendance calendar with date picker</span>
                     </li>
                     <li className="flex items-start">
                       <CheckCircle className="mr-2 h-4 w-4 text-green-500" />
-                      <span>Schedule integration with PDF upload</span>
+                      <span>To-do list management with priorities</span>
                     </li>
                     <li className="flex items-start">
                       <CheckCircle className="mr-2 h-4 w-4 text-green-500" />
-                      <span>To-do list management for classes</span>
+                      <span>Email & browser notifications</span>
+                    </li>
+                    <li className="flex items-start">
+                      <CheckCircle className="mr-2 h-4 w-4 text-green-500" />
+                      <span>Security activity tracking</span>
                     </li>
                   </ul>
                 </CardContent>
@@ -88,7 +97,7 @@ export default function AboutPage() {
                   <CardTitle className="text-base">Points System</CardTitle>
                 </CardHeader>
                 <CardContent className="text-sm">
-                  <p className="mb-2">The system includes a points-based reward mechanism:</p>
+                  <p className="mb-2">Gamification system to encourage attendance:</p>
                   <ul className="space-y-2">
                     <li className="flex items-start">
                       <CheckCircle className="mr-2 h-4 w-4 text-green-500" />
@@ -96,15 +105,15 @@ export default function AboutPage() {
                     </li>
                     <li className="flex items-start">
                       <CheckCircle className="mr-2 h-4 w-4 text-green-500" />
-                      <span>Earn 10 points per week of maintained attendance</span>
+                      <span>Lose 2 points per absence per subject</span>
                     </li>
                     <li className="flex items-start">
                       <CheckCircle className="mr-2 h-4 w-4 text-green-500" />
-                      <span>Spend 2 points to use the Per Subject Calculator</span>
+                      <span>Track points history and trends</span>
                     </li>
                     <li className="flex items-start">
                       <CheckCircle className="mr-2 h-4 w-4 text-green-500" />
-                      <span>Track points history and rewards</span>
+                      <span>Visual points dashboard</span>
                     </li>
                   </ul>
                 </CardContent>
@@ -113,12 +122,12 @@ export default function AboutPage() {
           </div>
         </TabsContent>
 
-        <TabsContent value="features" className="space-y-4">
+        <TabsContent value="features" className="space-y-4 mt-0">
           <div className="space-y-6">
             <div>
-              <h3 className="text-lg font-medium">Getting Started</h3>
+              <h3 className="text-lg font-medium">Getting Started with TrackLy</h3>
               <p className="mt-2 text-sm text-muted-foreground">
-                Follow these steps to get started with the Attendance Tracker:
+                Follow this comprehensive guide to set up and use TrackLy effectively:
               </p>
               <ol className="mt-4 space-y-4 text-sm">
                 <li className="flex items-start">
@@ -128,7 +137,7 @@ export default function AboutPage() {
                   <div>
                     <p className="font-medium">Set up your profile</p>
                     <p className="text-muted-foreground">
-                      Go to the Profile page and enter your name, student ID, and current semester.
+                      Navigate to Profile page → Enter your name, student ID, and current semester → Upload a profile picture (optional) → Save changes.
                     </p>
                   </div>
                 </li>
@@ -139,7 +148,7 @@ export default function AboutPage() {
                   <div>
                     <p className="font-medium">Add your subjects</p>
                     <p className="text-muted-foreground">
-                      In the Profile page, go to the Subjects tab and add all the subjects for your current semester.
+                      Go to Subjects page → Click "Add Subject" → Enter subject name, code, and type (Lecture/Lab/Tutorial) → Set weekly schedule (day and time) → Save. Repeat for all subjects.
                     </p>
                   </div>
                 </li>
@@ -148,9 +157,9 @@ export default function AboutPage() {
                     3
                   </span>
                   <div>
-                    <p className="font-medium">Upload your schedule</p>
+                    <p className="font-medium">Mark attendance</p>
                     <p className="text-muted-foreground">
-                      Upload your weekly class schedule PDF in the Schedule Upload tab of the Profile page.
+                      Visit Attendance page → Select date from calendar → Mark attendance for each subject (Present/Absent) → Or use "Mark All Present" for quick entry → View real-time attendance percentage updates.
                     </p>
                   </div>
                 </li>
@@ -159,9 +168,75 @@ export default function AboutPage() {
                     4
                   </span>
                   <div>
-                    <p className="font-medium">Start tracking attendance</p>
+                    <p className="font-medium">Monitor your attendance</p>
                     <p className="text-muted-foreground">
-                      Use the Attendance page to mark absences and track your attendance.
+                      Check Dashboard for overall attendance summary → View subject-wise percentages → Get alerts when attendance falls below 75% → Track attendance trends over time.
+                    </p>
+                  </div>
+                </li>
+                <li className="flex items-start">
+                  <span className="mr-2 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs">
+                    5
+                  </span>
+                  <div>
+                    <p className="font-medium">Manage tasks with To-Do</p>
+                    <p className="text-muted-foreground">
+                      Go to To-Do page → Click "Add Task" → Enter task title, description, due date → Set priority (Low/Medium/High) → Mark complete when done → Filter by priority or completion status.
+                    </p>
+                  </div>
+                </li>
+                <li className="flex items-start">
+                  <span className="mr-2 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs">
+                    6
+                  </span>
+                  <div>
+                    <p className="font-medium">Configure notifications</p>
+                    <p className="text-muted-foreground">
+                      Settings → General → Enable notification sound, login sound, and browser notifications → Mute specific notification types if needed → Delivery tab for email notification preferences.
+                    </p>
+                  </div>
+                </li>
+                <li className="flex items-start">
+                  <span className="mr-2 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs">
+                    7
+                  </span>
+                  <div>
+                    <p className="font-medium">Track your points</p>
+                    <p className="text-muted-foreground">
+                      Visit Points page → View current points balance (starts at 100) → Monitor points deductions (2 points per absence per subject) → Check points history and trends.
+                    </p>
+                  </div>
+                </li>
+                <li className="flex items-start">
+                  <span className="mr-2 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs">
+                    8
+                  </span>
+                  <div>
+                    <p className="font-medium">Review activity history</p>
+                    <p className="text-muted-foreground">
+                      History page shows all your activities → Filter by type (attendance, todos, points) → View timestamps and details → Track your engagement patterns.
+                    </p>
+                  </div>
+                </li>
+                <li className="flex items-start">
+                  <span className="mr-2 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs">
+                    9
+                  </span>
+                  <div>
+                    <p className="font-medium">Security settings</p>
+                    <p className="text-muted-foreground">
+                      Settings → Security → View login history with device info and IP addresses → Check email notification history → Change password when needed.
+                    </p>
+                  </div>
+                </li>
+                <li className="flex items-start">
+                  <span className="mr-2 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs">
+                    10
+                  </span>
+                  <div>
+                    <p className="font-medium">Use AI Assistant</p>
+                    <p className="text-muted-foreground">
+                      Click the chat bubble icon → Ask questions about your attendance → Get help with features → Receive personalized recommendations → Available 24/7 for assistance.
                     </p>
                   </div>
                 </li>
@@ -289,7 +364,10 @@ export default function AboutPage() {
             ))}
           </div>
         </TabsContent>
-      </Tabs>
+            </div>
+          </div>
+        </Tabs>
+      </div>
     </div>
   )
 } 

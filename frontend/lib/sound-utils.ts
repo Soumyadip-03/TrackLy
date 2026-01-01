@@ -54,10 +54,17 @@ export function setNotificationSoundPreference(enabled: boolean): void {
  * Play the notification sound with fallbacks
  * @returns Promise that resolves when sound is played (or fails)
  */
-export async function playNotificationSound(type: 'success' | 'warning' | 'alert' = 'success') {
+export async function playNotificationSound(type: 'success' | 'warning' | 'alert' = 'success', category?: string): Promise<void> {
   // Check if notification sound is enabled
   const settings = getFromLocalStorage<SoundSettings>('notification_settings', {});
   if (settings.notificationSound === false) return;
+
+  // Check if this category is muted
+  const mutedTypes = getFromLocalStorage<string[]>('muted_notification_types', []);
+  if (category && mutedTypes.includes(category)) {
+    console.log(`Sound muted for category: ${category}`);
+    return;
+  }
 
   if (!audioContext) {
     initializeAudio();
@@ -74,15 +81,15 @@ export async function playNotificationSound(type: 'success' | 'warning' | 'alert
     switch (type) {
       case 'success':
         oscillator.frequency.setValueAtTime(440, audioContext.currentTime); // A4 note
-        gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
         break;
       case 'warning':
         oscillator.frequency.setValueAtTime(554.37, audioContext.currentTime); // C#5 note
-        gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
+        gainNode.gain.setValueAtTime(0.4, audioContext.currentTime);
         break;
       case 'alert':
         oscillator.frequency.setValueAtTime(659.25, audioContext.currentTime); // E5 note
-        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+        gainNode.gain.setValueAtTime(0.5, audioContext.currentTime);
         break;
     }
 

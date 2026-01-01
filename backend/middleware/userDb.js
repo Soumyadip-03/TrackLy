@@ -1,8 +1,8 @@
 const { getUserDbConnection, initializeUserDatabase } = require('../utils/dbManager');
 
 /**
- * Middleware to attach the user's specific database connection to the request object
- * This should be used after authentication middleware to ensure req.user is available
+ * Middleware to attach the user's database models to the request object
+ * Now uses shared database with userId-based isolation
  */
 exports.attachUserDb = async (req, res, next) => {
   try {
@@ -12,106 +12,47 @@ exports.attachUserDb = async (req, res, next) => {
       return next();
     }
     
-    // Initialize or get existing user database
-    const { connection, models } = await initializeUserDatabase(req.user.id);
+    // Get models from shared database
+    const { connection, models } = initializeUserDatabase(req.user.id);
     
     if (!connection || connection.readyState !== 1) {
-      console.error(`User database connection failed for user ${req.user.id}. Connection state: ${connection?.readyState}`);
-      throw new Error('Failed to connect to user database');
+      console.error(`Database connection failed. Connection state: ${connection?.readyState}`);
+      throw new Error('Failed to connect to database');
     }
     
-    // Attach the user-specific connection and models to the request
+    // Attach the models to the request
     req.userDb = {
       connection,
       models
     };
     
-    console.log(`Successfully attached user database for user ${req.user.id}`);
     next();
   } catch (error) {
-    console.error('Error connecting to user database:', error);
-    // If in development mode, fail the request for debugging purposes
-    if (process.env.NODE_ENV === 'development') {
-      return res.status(500).json({
-        success: false,
-        error: 'Failed to connect to user database',
-        details: error.message
-      });
-    }
-    // In production, continue anyway with main database as fallback
-    req.userDb = {
-      connection: null,
-      models: null,
-      error: error.message
-    };
-    next();
+    console.error('Error attaching database:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to connect to database',
+      details: error.message
+    });
   }
 };
 
 /**
- * Create user database after successful registration or login
+ * DEPRECATED: No longer needed with single shared database
  * @param {Object} user - User object with _id
  * @returns {Promise<void>}
  */
 exports.setupUserDatabase = async (user) => {
-  try {
-    if (!user || !user._id) {
-      throw new Error('Invalid user object');
-    }
-    
-    // Initialize the user's database
-    const { connection, models } = await initializeUserDatabase(user._id);
-    
-    // Create or update UserInfo document
-    await models.UserInfo.findOneAndUpdate(
-      { mainUserId: user._id },
-      {
-        mainUserId: user._id,
-        email: user.email,
-        name: user.name,
-        studentId: user.studentId
-      },
-      { upsert: true, new: true }
-    );
-    
-    return { success: true };
-  } catch (error) {
-    console.error('Error setting up user database:', error);
-    return { success: false, error: error.message };
-  }
+  // No-op: User data is stored in main database with userId field
+  return { success: true };
 };
 
 /**
- * Update user info in the user-specific database
+ * DEPRECATED: No longer needed with single shared database
  * @param {Object} user - User object with updated fields
  * @returns {Promise<Object>} - Result of the update operation
  */
 exports.updateUserInfo = async (user) => {
-  try {
-    if (!user || !user._id) {
-      throw new Error('Invalid user object');
-    }
-    
-    // Initialize the user's database
-    const { models } = await initializeUserDatabase(user._id);
-    
-    // Update UserInfo document
-    const updatedUserInfo = await models.UserInfo.findOneAndUpdate(
-      { mainUserId: user._id },
-      {
-        name: user.name,
-        email: user.email,
-        studentId: user.studentId
-      },
-      { new: true }
-    );
-    
-    return { 
-      success: true,
-      data: updatedUserInfo
-    };
-  } catch (error) {
-    console.error('Error updating user info in user database:', error);
-    return { success: false, error: error.message };
-  }
+  // No-op: User data is stored in main User model
+  return { success: true };
 }; 

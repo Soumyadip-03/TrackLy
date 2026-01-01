@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "@/components/ui/use-toast"
 import { fetchWithAuth } from "@/lib/api"
-import { AlertCircle } from "lucide-react"
+import { AlertCircle, Eye, EyeOff, CheckCircle, XCircle } from "lucide-react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,9 +28,12 @@ import {
 
 export function SecuritySettings() {
   const [showPasswordDialog, setShowPasswordDialog] = useState(false)
-  const [showClearSessionsDialog, setShowClearSessionsDialog] = useState(false)
   const [isChangingPassword, setIsChangingPassword] = useState(false)
-  const [isClearingSessions, setIsClearingSessions] = useState(false)
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false)
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [currentPasswordValid, setCurrentPasswordValid] = useState<boolean | null>(null)
+  const [isVerifyingPassword, setIsVerifyingPassword] = useState(false)
   
   const [passwordData, setPasswordData] = useState({
     currentPassword: "",
@@ -38,12 +41,45 @@ export function SecuritySettings() {
     confirmPassword: ""
   })
 
+  const verifyCurrentPassword = async (password: string) => {
+    if (!password) {
+      setCurrentPasswordValid(null)
+      return
+    }
+    
+    setIsVerifyingPassword(true)
+    try {
+      const response = await fetchWithAuth('/user/verify-password', {
+        method: 'POST',
+        body: JSON.stringify({ password })
+      })
+      
+      const result = await response.json()
+      setCurrentPasswordValid(result.success && result.valid)
+    } catch (error) {
+      setCurrentPasswordValid(false)
+    } finally {
+      setIsVerifyingPassword(false)
+    }
+  }
+
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target
     setPasswordData(prev => ({
       ...prev,
-      [e.target.name]: e.target.value
+      [name]: value
     }))
+    
+    if (name === 'currentPassword') {
+      const timeoutId = setTimeout(() => verifyCurrentPassword(value), 500)
+      return () => clearTimeout(timeoutId)
+    }
   }
+
+  const passwordsMatch = passwordData.newPassword && passwordData.confirmPassword && 
+    passwordData.newPassword === passwordData.confirmPassword
+  const passwordsDontMatch = passwordData.newPassword && passwordData.confirmPassword && 
+    passwordData.newPassword !== passwordData.confirmPassword
 
   const handleChangePassword = async () => {
     if (!passwordData.currentPassword || !passwordData.newPassword) {
@@ -106,34 +142,6 @@ export function SecuritySettings() {
     }
   }
 
-  const handleClearSessions = async () => {
-    try {
-      setIsClearingSessions(true)
-      const response = await fetchWithAuth('/user/clear-sessions', {
-        method: 'POST'
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to clear sessions')
-      }
-
-      toast({
-        title: "Success",
-        description: "All login sessions cleared successfully"
-      })
-
-      setShowClearSessionsDialog(false)
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to clear sessions",
-        variant: "destructive"
-      })
-    } finally {
-      setIsClearingSessions(false)
-    }
-  }
-
   return (
     <div className="mt-2">
       <h3 className="text-lg font-medium mb-4">Security Settings</h3>
@@ -141,15 +149,9 @@ export function SecuritySettings() {
         <Button 
           variant="outline" 
           onClick={() => setShowPasswordDialog(true)}
-        >
-          Change Password
-        </Button>
-        <Button 
-          variant="outline" 
-          onClick={() => setShowClearSessionsDialog(true)}
           className="bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700"
         >
-          Sign out all devices
+          Change Password
         </Button>
       </div>
 
@@ -165,33 +167,101 @@ export function SecuritySettings() {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="currentPassword">Current Password</Label>
-              <Input
-                id="currentPassword"
-                name="currentPassword"
-                type="password"
-                value={passwordData.currentPassword}
-                onChange={handlePasswordChange}
-              />
+              <div className="relative">
+                <Input
+                  id="currentPassword"
+                  name="currentPassword"
+                  type={showCurrentPassword ? "text" : "password"}
+                  value={passwordData.currentPassword}
+                  onChange={handlePasswordChange}
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                  onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                >
+                  {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+              {passwordData.currentPassword && (
+                <div className="flex items-center gap-2 text-sm mt-2">
+                  {isVerifyingPassword ? (
+                    <span className="text-muted-foreground">Verifying...</span>
+                  ) : currentPasswordValid === true ? (
+                    <>
+                      <CheckCircle className="h-4 w-4 text-green-600" />
+                      <span className="text-green-600">Password correct</span>
+                    </>
+                  ) : currentPasswordValid === false ? (
+                    <>
+                      <XCircle className="h-4 w-4 text-red-600" />
+                      <span className="text-red-600">Password incorrect</span>
+                    </>
+                  ) : null}
+                </div>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="newPassword">New Password</Label>
-              <Input
-                id="newPassword"
-                name="newPassword"
-                type="password"
-                value={passwordData.newPassword}
-                onChange={handlePasswordChange}
-              />
+              <div className="relative">
+                <Input
+                  id="newPassword"
+                  name="newPassword"
+                  type={showNewPassword ? "text" : "password"}
+                  value={passwordData.newPassword}
+                  onChange={handlePasswordChange}
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                  onClick={() => setShowNewPassword(!showNewPassword)}
+                >
+                  {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirmPassword">Confirm New Password</Label>
-              <Input
-                id="confirmPassword"
-                name="confirmPassword"
-                type="password"
-                value={passwordData.confirmPassword}
-                onChange={handlePasswordChange}
-              />
+              <div className="relative">
+                <Input
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  type={showConfirmPassword ? "text" : "password"}
+                  value={passwordData.confirmPassword}
+                  onChange={handlePasswordChange}
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                >
+                  {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+              {passwordData.confirmPassword && (
+                <div className="flex items-center gap-2 text-sm mt-2">
+                  {passwordsMatch ? (
+                    <>
+                      <CheckCircle className="h-4 w-4 text-green-600" />
+                      <span className="text-green-600">Passwords match</span>
+                    </>
+                  ) : passwordsDontMatch ? (
+                    <>
+                      <XCircle className="h-4 w-4 text-red-600" />
+                      <span className="text-red-600">Passwords don't match</span>
+                    </>
+                  ) : null}
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>
@@ -211,32 +281,6 @@ export function SecuritySettings() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Clear Sessions Alert Dialog */}
-      <AlertDialog open={showClearSessionsDialog} onOpenChange={setShowClearSessionsDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-red-600" />
-              Sign out all devices?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              This will clear all your login sessions and you'll need to log in again on all devices. 
-              This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isClearingSessions}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleClearSessions}
-              disabled={isClearingSessions}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              {isClearingSessions ? "Clearing..." : "Yes, sign out all devices"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   )
 }

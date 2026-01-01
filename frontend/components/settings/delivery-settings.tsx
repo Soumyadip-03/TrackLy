@@ -8,6 +8,7 @@ import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "@/components/ui/use-toast"
 import { getFromLocalStorage, saveToLocalStorage } from "@/lib/storage-utils"
+import { fetchWithAuth } from "@/lib/api"
 
 interface DeliverySettingsData {
   emailNotifications: boolean
@@ -28,20 +29,58 @@ export function DeliverySettings() {
   const [isSaving, setIsSaving] = useState(false)
 
   useEffect(() => {
-    const savedSettings = getFromLocalStorage<any>('notification_settings', {})
-    const mergedSettings = { ...defaultSettings, ...savedSettings }
-    setSettings(mergedSettings)
+    const loadSettings = async () => {
+      try {
+        const response = await fetchWithAuth('/auth/me')
+        if (response.ok) {
+          const data = await response.json()
+          const prefs = data.notificationPreferences?.emailNotifications
+          if (prefs) {
+            const mutedTypes = prefs.mutedTypes || []
+            setSettings({
+              emailNotifications: prefs.enabled || false,
+              emailDigest: prefs.frequency || 'daily',
+              pointsNotifications: !mutedTypes.includes('points'),
+              achievementNotifications: !mutedTypes.includes('achievement')
+            })
+          }
+        }
+      } catch (error) {
+        const savedSettings = getFromLocalStorage<any>('notification_settings', {})
+        const mergedSettings = { ...defaultSettings, ...savedSettings }
+        setSettings(mergedSettings)
+      }
+    }
+    loadSettings()
   }, [])
+
+  const saveToBackend = async (newSettings: DeliverySettingsData) => {
+    try {
+      const response = await fetchWithAuth('/user/email-preferences', {
+        method: 'PUT',
+        body: JSON.stringify(newSettings)
+      })
+      if (response.ok) {
+        toast({
+          title: "Settings Saved",
+          description: "Email preferences updated successfully.",
+        })
+      }
+    } catch (error) {
+      console.error('Failed to save to backend:', error)
+    }
+  }
 
   const handleSwitchChange = (name: string) => {
     setSettings((prev) => {
       const newSettings = { ...prev, [name]: !prev[name as keyof typeof prev] }
       
-      // Auto-save
       const existingSettings = getFromLocalStorage<any>('notification_settings', {})
       const updatedSettings = { ...existingSettings, ...newSettings }
       saveToLocalStorage('notification_settings', updatedSettings)
       window.dispatchEvent(new CustomEvent('settingsUpdated'))
+      
+      saveToBackend(newSettings)
       
       return newSettings
     })
@@ -51,11 +90,12 @@ export function DeliverySettings() {
     setSettings((prev) => {
       const newSettings = { ...prev, [name]: value }
       
-      // Auto-save
       const existingSettings = getFromLocalStorage<any>('notification_settings', {})
       const updatedSettings = { ...existingSettings, ...newSettings }
       saveToLocalStorage('notification_settings', updatedSettings)
       window.dispatchEvent(new CustomEvent('settingsUpdated'))
+      
+      saveToBackend(newSettings)
       
       return newSettings
     })

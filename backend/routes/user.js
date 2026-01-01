@@ -3,11 +3,9 @@ const router = express.Router();
 const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
 const { protect } = require('../middleware/auth');
-const { updateUserInfo } = require('../middleware/userDb');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const bcrypt = require('bcryptjs');
 
 // Set up storage for multer
 const storage = multer.diskStorage({
@@ -71,9 +69,6 @@ const uploadProfilePicture = multer({
   }
 });
 
-// @desc    Delete profile picture
-// @route   DELETE /api/user/profile-picture
-// @access  Private
 router.delete('/profile-picture', protect, async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
@@ -105,171 +100,195 @@ router.delete('/profile-picture', protect, async (req, res) => {
   }
 });
 
-// @desc    Upload profile picture
-// @route   POST /api/user/profile-picture
-// @access  Private
-router.post(
-  '/profile-picture',
-  protect,
-  uploadProfilePicture.single('profilePicture'),
-  async (req, res) => {
-    try {
-      if (!req.file) {
-        return res.status(400).json({
-          success: false,
-          error: 'Please upload an image file'
-        });
-      }
-
-      const { filename } = req.file;
-      const profilePicturePath = `uploads/profiles/${filename}`;
-
-      const user = await User.findByIdAndUpdate(
-        req.user.id,
-        { profilePicture: profilePicturePath },
-        { new: true }
-      );
-
-      res.status(200).json({
-        success: true,
-        profilePicture: profilePicturePath,
-        data: user
-      });
-    } catch (err) {
-      console.error(err.message);
-      res.status(500).json({
+router.post('/profile-picture', protect, uploadProfilePicture.single('profilePicture'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
         success: false,
-        error: 'Server error uploading profile picture'
+        error: 'Please upload an image file'
       });
     }
+
+    const { filename } = req.file;
+    const profilePicturePath = `uploads/profiles/${filename}`;
+
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { profilePicture: profilePicturePath },
+      { new: true }
+    );
+
+    res.status(200).json({
+      success: true,
+      profilePicture: profilePicturePath,
+      data: user
+    });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({
+      success: false,
+      error: 'Server error uploading profile picture'
+    });
   }
-);
+});
 
-// @desc    Update user profile
-// @route   PUT /api/user/profile
-// @access  Private
-router.put(
-  '/profile',
-  protect,
-  [
-    body('name', 'Name is required').optional().not().isEmpty(),
-    body('currentSemester', 'Current semester must be a number').optional().isNumeric()
-  ],
-  async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ success: false, errors: errors.array() });
+router.put('/profile', protect, [
+  body('name', 'Name is required').optional().not().isEmpty(),
+  body('currentSemester', 'Current semester must be a number').optional().isNumeric()
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ success: false, errors: errors.array() });
+  }
+
+  try {
+    const { name, currentSemester, profilePicture } = req.body;
+    
+    const userFields = {};
+    if (name) userFields.name = name;
+    if (currentSemester) userFields.currentSemester = currentSemester;
+    if (profilePicture) userFields.profilePicture = profilePicture;
+
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { $set: userFields },
+      { new: true }
+    );
+
+    res.status(200).json({
+      success: true,
+      data: user
+    });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({
+      success: false,
+      error: 'Server error'
+    });
+  }
+});
+
+// Update notification preferences
+router.put('/notification-preferences', protect, async (req, res) => {
+  try {
+    const { attendanceReminders, attendanceThreshold, attendanceReminderFrequency } = req.body;
+    
+    const user = await User.findById(req.user.id);
+    
+    if (!user.notificationPreferences) {
+      user.notificationPreferences = {};
     }
+    
+    if (attendanceReminders !== undefined) {
+      user.notificationPreferences.attendanceReminders = attendanceReminders;
+    }
+    if (attendanceThreshold !== undefined) {
+      user.notificationPreferences.attendanceThreshold = attendanceThreshold;
+    }
+    if (attendanceReminderFrequency !== undefined) {
+      user.notificationPreferences.attendanceReminderFrequency = attendanceReminderFrequency;
+    }
+    
+    await user.save();
 
-    try {
-      const { name, currentSemester, profilePicture } = req.body;
-      
-      const userFields = {};
-      if (name) userFields.name = name;
-      if (currentSemester) userFields.currentSemester = currentSemester;
-      if (profilePicture) userFields.profilePicture = profilePicture;
+    res.status(200).json({
+      success: true,
+      data: user.notificationPreferences
+    });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({
+      success: false,
+      error: 'Server error'
+    });
+  }
+});
 
-      const user = await User.findByIdAndUpdate(
-        req.user.id,
-        { $set: userFields },
-        { new: true }
-      );
+// Update email notification preferences
+router.put('/email-preferences', protect, async (req, res) => {
+  try {
+    const { emailNotifications, emailDigest, pointsNotifications, achievementNotifications } = req.body;
+    
+    const user = await User.findById(req.user.id);
+    
+    if (!user.notificationPreferences) {
+      user.notificationPreferences = {};
+    }
+    if (!user.notificationPreferences.emailNotifications) {
+      user.notificationPreferences.emailNotifications = {};
+    }
+    
+    if (emailNotifications !== undefined) {
+      user.notificationPreferences.emailNotifications.enabled = emailNotifications;
+    }
+    if (emailDigest !== undefined) {
+      user.notificationPreferences.emailNotifications.frequency = emailDigest;
+    }
+    
+    const mutedTypes = [];
+    if (pointsNotifications === false) mutedTypes.push('points');
+    if (achievementNotifications === false) mutedTypes.push('achievement');
+    user.notificationPreferences.emailNotifications.mutedTypes = mutedTypes;
+    
+    await user.save();
 
-      if (name) {
-        await updateUserInfo({
-          _id: req.user.id,
-          name: name,
-          email: user.email,
-          studentId: user.studentId
-        });
-      }
+    res.status(200).json({
+      success: true,
+      data: user.notificationPreferences
+    });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({
+      success: false,
+      error: 'Server error'
+    });
+  }
+});
 
-      res.status(200).json({
-        success: true,
-        data: user
-      });
-    } catch (err) {
-      console.error(err.message);
-      res.status(500).json({
+router.post('/schedule/pdf', protect, upload.single('pdfSchedule'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
         success: false,
-        error: 'Server error'
+        error: 'Please upload a PDF file'
       });
     }
-  }
-);
 
-// @desc    Upload and save PDF schedule
-// @route   POST /api/user/schedule/pdf
-// @access  Private
-router.post(
-  '/schedule/pdf',
-  protect,
-  upload.single('pdfSchedule'),
-  async (req, res) => {
-    try {
-      if (!req.file) {
-        return res.status(400).json({
-          success: false,
-          error: 'Please upload a PDF file'
-        });
-      }
+    const { filename, originalname, path: filePath, size } = req.file;
 
-      const { filename, originalname, path: filePath, size } = req.file;
-
-      const user = await User.findByIdAndUpdate(
-        req.user.id,
-        {
-          pdfSchedule: {
-            name: filename,
-            originalName: originalname,
-            path: filePath,
-            size: size,
-            uploadDate: new Date(),
-            processed: false
-          }
-        },
-        { new: true }
-      );
-
-      await req.userDb.models.UserInfo.findOneAndUpdate(
-        { mainUserId: req.user._id },
-        {
-          $set: {
-            pdfSchedule: {
-              name: filename,
-              originalName: originalname,
-              path: filePath,
-              size: size,
-              uploadDate: new Date(),
-              processed: false
-            }
-          }
-        },
-        { new: true }
-      );
-
-      res.status(200).json({
-        success: true,
-        data: {
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      {
+        pdfSchedule: {
           name: filename,
           originalName: originalname,
+          path: filePath,
           size: size,
-          uploadDate: user.pdfSchedule.uploadDate
+          uploadDate: new Date(),
+          processed: false
         }
-      });
-    } catch (err) {
-      console.error(err.message);
-      res.status(500).json({
-        success: false,
-        error: 'Server error uploading schedule PDF'
-      });
-    }
-  }
-);
+      },
+      { new: true }
+    );
 
-// @desc    Get user's PDF schedule
-// @route   GET /api/user/schedule/pdf
-// @access  Private
+    res.status(200).json({
+      success: true,
+      data: {
+        name: filename,
+        originalName: originalname,
+        size: size,
+        uploadDate: user.pdfSchedule.uploadDate
+      }
+    });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({
+      success: false,
+      error: 'Server error uploading schedule PDF'
+    });
+  }
+});
+
 router.get('/schedule/pdf', protect, async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
@@ -307,31 +326,25 @@ router.get('/schedule/pdf', protect, async (req, res) => {
   }
 });
 
-// @desc    Download user's PDF schedule
-// @route   GET /api/user/schedule/pdf/download
-// @access  Private
 router.get('/schedule/pdf/download', protect, async (req, res) => {
   try {
-    const userInfo = await req.userDb.models.UserInfo.findOne(
-      { mainUserId: req.user._id },
-      { 'pdfSchedule': 1 }
-    );
+    const user = await User.findById(req.user.id);
 
-    if (!userInfo || !userInfo.pdfSchedule) {
+    if (!user || !user.pdfSchedule) {
       return res.status(404).json({
         success: false,
         error: 'No PDF schedule found for this user'
       });
     }
 
-    if (!fs.existsSync(userInfo.pdfSchedule.path)) {
+    if (!fs.existsSync(user.pdfSchedule.path)) {
       return res.status(404).json({
         success: false,
         error: 'PDF file not found'
       });
     }
 
-    res.download(userInfo.pdfSchedule.path, userInfo.pdfSchedule.originalName);
+    res.download(user.pdfSchedule.path, user.pdfSchedule.originalName);
   } catch (err) {
     console.error(err.message);
     res.status(500).json({
@@ -341,9 +354,6 @@ router.get('/schedule/pdf/download', protect, async (req, res) => {
   }
 });
 
-// @desc    Update user points
-// @route   PUT /api/user/points
-// @access  Private
 router.put('/points', protect, async (req, res) => {
   try {
     const { points, operation } = req.body;
@@ -359,12 +369,6 @@ router.put('/points', protect, async (req, res) => {
 
     await user.save();
 
-    await req.userDb.models.UserInfo.findOneAndUpdate(
-      { mainUserId: req.user._id },
-      { $set: { points: user.points } },
-      { new: true }
-    );
-
     res.status(200).json({
       success: true,
       data: user.points
@@ -378,32 +382,21 @@ router.put('/points', protect, async (req, res) => {
   }
 });
 
-// @desc    Delete user's PDF schedule
-// @route   DELETE /api/user/schedule/pdf
-// @access  Private
 router.delete('/schedule/pdf', protect, async (req, res) => {
   try {
-    const userInfo = await req.userDb.models.UserInfo.findOne(
-      { mainUserId: req.user._id },
-      { 'pdfSchedule': 1 }
-    );
+    const user = await User.findById(req.user.id);
 
-    if (!userInfo || !userInfo.pdfSchedule) {
+    if (!user || !user.pdfSchedule) {
       return res.status(404).json({
         success: false,
         error: 'No PDF schedule found for this user'
       });
     }
 
-    const filePath = userInfo.pdfSchedule.path;
+    const filePath = user.pdfSchedule.path;
 
     await User.findByIdAndUpdate(
       req.user.id,
-      { $unset: { pdfSchedule: "" } }
-    );
-
-    await req.userDb.models.UserInfo.findOneAndUpdate(
-      { mainUserId: req.user._id },
       { $unset: { pdfSchedule: "" } }
     );
 
@@ -428,28 +421,18 @@ router.delete('/schedule/pdf', protect, async (req, res) => {
   }
 });
 
-// @desc    Parse user's PDF schedule
-// @route   GET /api/user/schedule/pdf/parse
-// @access  Private
 router.get('/schedule/pdf/parse', protect, async (req, res) => {
   try {
-    console.log(`Attempting to parse PDF for user ${req.user.id}`);
-    
-    const userInfo = await req.userDb.models.UserInfo.findOne(
-      { mainUserId: req.user._id },
-      { 'pdfSchedule': 1 }
-    );
+    const user = await User.findById(req.user.id);
 
-    if (!userInfo || !userInfo.pdfSchedule) {
-      console.log(`No PDF schedule found for user ${req.user.id}`);
+    if (!user || !user.pdfSchedule) {
       return res.status(404).json({
         success: false,
         error: 'No PDF schedule found for this user'
       });
     }
 
-    if (!fs.existsSync(userInfo.pdfSchedule.path)) {
-      console.error(`PDF file not found at path: ${userInfo.pdfSchedule.path}`);
+    if (!fs.existsSync(user.pdfSchedule.path)) {
       return res.status(404).json({
         success: false,
         error: 'PDF file not found'
@@ -457,28 +440,20 @@ router.get('/schedule/pdf/parse', protect, async (req, res) => {
     }
 
     try {
-      console.log(`Starting PDF parsing for file: ${userInfo.pdfSchedule.path}`);
       const { parseSchedulePDF } = require('../utils/pdfParser');
-      const scheduleItems = await parseSchedulePDF(userInfo.pdfSchedule.path);
-
-      await req.userDb.models.UserInfo.findOneAndUpdate(
-        { mainUserId: req.user._id },
-        { 'pdfSchedule.processed': true }
-      );
+      const scheduleItems = await parseSchedulePDF(user.pdfSchedule.path);
 
       await User.findByIdAndUpdate(req.user.id, { 
         'pdfSchedule.processed': true 
       });
 
       if (!scheduleItems || scheduleItems.length === 0) {
-        console.warn(`No schedule items extracted from PDF for user ${req.user.id}`);
         return res.status(400).json({
           success: false,
           error: 'Could not extract schedule information from PDF. The format may not be supported.'
         });
       }
 
-      console.log(`Successfully extracted ${scheduleItems.length} schedule items for user ${req.user.id}`);
       res.status(200).json({
         success: true,
         data: scheduleItems
@@ -499,161 +474,136 @@ router.get('/schedule/pdf/parse', protect, async (req, res) => {
   }
 });
 
-// @desc    Upload and parse PDF directly (for testing)
-// @route   POST /api/user/schedule/pdf/test
-// @access  Private
-router.post(
-  '/schedule/pdf/test',
-  protect,
-  upload.single('pdfSchedule'),
-  async (req, res) => {
+router.post('/schedule/pdf/test', protect, upload.single('pdfSchedule'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        error: 'Please upload a PDF file'
+      });
+    }
+
+    const { path: filePath } = req.file;
+
     try {
-      console.log('Testing PDF parsing with direct upload');
+      const { parseSchedulePDF } = require('../utils/pdfParser');
+      const scheduleItems = await parseSchedulePDF(filePath);
       
-      if (!req.file) {
+      try {
+        fs.unlinkSync(filePath);
+      } catch (cleanupError) {
+        console.error('Error cleaning up test file:', cleanupError);
+      }
+      
+      if (!scheduleItems || scheduleItems.length === 0) {
         return res.status(400).json({
           success: false,
-          error: 'Please upload a PDF file'
+          error: 'No schedule information could be extracted from the PDF'
         });
       }
-
-      const { path: filePath } = req.file;
-      console.log(`Test PDF uploaded to: ${filePath}`);
-
-      try {
-        const { parseSchedulePDF } = require('../utils/pdfParser');
-        const scheduleItems = await parseSchedulePDF(filePath);
-        
-        try {
-          fs.unlinkSync(filePath);
-          console.log('Test PDF file removed after parsing');
-        } catch (cleanupError) {
-          console.error('Error cleaning up test file:', cleanupError);
-        }
-        
-        if (!scheduleItems || scheduleItems.length === 0) {
-          return res.status(400).json({
-            success: false,
-            error: 'No schedule information could be extracted from the PDF'
-          });
-        }
-        
-        res.status(200).json({
-          success: true,
-          data: scheduleItems,
-          message: `Successfully extracted ${scheduleItems.length} schedule items`
-        });
-      } catch (parseError) {
-        try {
-          fs.unlinkSync(filePath);
-          console.log('Test PDF file removed after failed parsing');
-        } catch (cleanupError) {
-          console.error('Error cleaning up test file:', cleanupError);
-        }
-        
-        console.error('Error testing PDF parsing:', parseError);
-        return res.status(500).json({
-          success: false,
-          error: parseError.message || 'Error parsing the test PDF file'
-        });
-      }
-    } catch (err) {
-      console.error('Server error during test PDF parsing:', err);
-      res.status(500).json({
-        success: false,
-        error: 'Server error'
-      });
-    }
-  }
-);
-
-// @desc    Change password
-// @route   PUT /api/user/change-password
-// @access  Private
-router.put(
-  '/change-password',
-  protect,
-  [
-    body('currentPassword', 'Current password is required').not().isEmpty(),
-    body('newPassword', 'New password must be at least 6 characters').isLength({ min: 6 })
-  ],
-  async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ success: false, errors: errors.array() });
-    }
-
-    try {
-      const { currentPassword, newPassword } = req.body;
       
-      const user = await User.findById(req.user.id).select('+password');
-      
-      if (!user) {
-        return res.status(404).json({
-          success: false,
-          error: 'User not found'
-        });
-      }
-
-      const isMatch = await user.matchPassword(currentPassword);
-      
-      if (!isMatch) {
-        return res.status(401).json({
-          success: false,
-          error: 'Current password is incorrect'
-        });
-      }
-
-      user.password = newPassword;
-      await user.save();
-
-      await req.userDb.models.UserInfo.findOneAndUpdate(
-        { mainUserId: req.user.id },
-        { 
-          $push: { 
-            accountActivity: {
-              action: 'password_changed',
-              timestamp: new Date()
-            }
-          }
-        }
-      );
-
       res.status(200).json({
         success: true,
-        message: 'Password changed successfully'
+        data: scheduleItems,
+        message: `Successfully extracted ${scheduleItems.length} schedule items`
       });
-    } catch (err) {
-      console.error(err.message);
-      res.status(500).json({
+    } catch (parseError) {
+      try {
+        fs.unlinkSync(filePath);
+      } catch (cleanupError) {
+        console.error('Error cleaning up test file:', cleanupError);
+      }
+      
+      console.error('Error testing PDF parsing:', parseError);
+      return res.status(500).json({
         success: false,
-        error: 'Server error'
+        error: parseError.message || 'Error parsing the test PDF file'
       });
     }
+  } catch (err) {
+    console.error('Server error during test PDF parsing:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Server error'
+    });
   }
-);
+});
 
-// @desc    Clear all login sessions
-// @route   POST /api/user/clear-sessions
-// @access  Private
-router.post('/clear-sessions', protect, async (req, res) => {
+router.post('/verify-password', protect, [
+  body('password', 'Password is required').not().isEmpty()
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ success: false, errors: errors.array() });
+  }
+
   try {
-    await req.userDb.models.UserInfo.findOneAndUpdate(
-      { mainUserId: req.user.id },
-      { 
-        $set: { loginHistory: [] },
-        $push: { 
-          accountActivity: {
-            action: 'all_sessions_cleared',
-            timestamp: new Date()
-          }
-        }
-      }
-    );
+    const { password } = req.body;
+    
+    const user = await User.findById(req.user.id).select('+password');
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+
+    const isMatch = await user.matchPassword(password);
 
     res.status(200).json({
       success: true,
-      message: 'All login sessions cleared successfully'
+      valid: isMatch
+    });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({
+      success: false,
+      error: 'Server error'
+    });
+  }
+});
+
+router.put('/change-password', protect, [
+  body('currentPassword', 'Current password is required').not().isEmpty(),
+  body('newPassword', 'New password must be at least 6 characters').isLength({ min: 6 })
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ success: false, errors: errors.array() });
+  }
+
+  try {
+    const { currentPassword, newPassword } = req.body;
+    
+    const user = await User.findById(req.user.id).select('+password');
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+
+    const isMatch = await user.matchPassword(currentPassword);
+    
+    if (!isMatch) {
+      return res.status(401).json({
+        success: false,
+        error: 'Current password is incorrect'
+      });
+    }
+
+    user.password = newPassword;
+    user.accountActivity.push({
+      action: 'password_changed',
+      timestamp: new Date()
+    });
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Password changed successfully'
     });
   } catch (err) {
     console.error(err.message);

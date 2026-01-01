@@ -1,14 +1,13 @@
 "use client"
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Shield, Settings, GraduationCap, Mail, SlidersHorizontal } from "lucide-react"
+import { Shield, Settings, GraduationCap, Mail } from "lucide-react"
 import { ClientOnly } from "@/components/client-only"
 import { LoginHistory } from "@/components/notifications/login-history"
 import { SecuritySettings } from "@/components/profile/security-settings"
 import { GeneralSettings } from "@/components/settings/general-settings"
 import { AcademicSettings } from "@/components/settings/academic-settings"
 import { DeliverySettings } from "@/components/settings/delivery-settings"
-import { AdvancedSettings } from "@/components/settings/advanced-settings"
 
 export default function SettingsPage() {
   return (
@@ -22,7 +21,7 @@ export default function SettingsPage() {
         }>
           <Tabs defaultValue="security" className="h-full flex flex-col">
             <div className="container">
-              <TabsList className="w-full max-w-3xl mx-auto grid grid-cols-5">
+              <TabsList className="w-full max-w-3xl mx-auto grid grid-cols-4">
                 <TabsTrigger value="security" className="flex items-center gap-2">
                   <Shield className="h-4 w-4" />
                   <span>Security</span>
@@ -38,10 +37,6 @@ export default function SettingsPage() {
                 <TabsTrigger value="delivery" className="flex items-center gap-2">
                   <Mail className="h-4 w-4" />
                   <span>Delivery</span>
-                </TabsTrigger>
-                <TabsTrigger value="advanced" className="flex items-center gap-2">
-                  <SlidersHorizontal className="h-4 w-4" />
-                  <span>Advanced</span>
                 </TabsTrigger>
               </TabsList>
             </div>
@@ -59,9 +54,6 @@ export default function SettingsPage() {
                 </TabsContent>
                 <TabsContent value="delivery" className="space-y-4 mt-0">
                   <DeliverySettings />
-                </TabsContent>
-                <TabsContent value="advanced" className="space-y-4 mt-0">
-                  <AdvancedSettings />
                 </TabsContent>
               </div>
             </div>

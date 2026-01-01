@@ -89,14 +89,14 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="container flex items-center justify-center h-screen py-0">
+    <div className="container flex items-center justify-center min-h-screen py-6">
       <Card className="w-full max-w-md">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg">Create an Account</CardTitle>
-          <CardDescription className="text-sm">Sign up for TrackLy to start tracking your attendance</CardDescription>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Create an Account</CardTitle>
+          <CardDescription className="text-xs">Sign up for TrackLy to start tracking your attendance</CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
-          <CardContent className="space-y-2 max-h-[calc(100vh-240px)] overflow-y-auto">
+          <CardContent className="space-y-1.5 max-h-[55vh] overflow-y-auto py-3">
             {message && (
               <AuthMessage
                 message={message.text}
@@ -107,7 +107,7 @@ export default function RegisterPage() {
               />
             )}
             
-            <div className="space-y-1">
+            <div className="space-y-0.5">
               <Label htmlFor="name" className="text-xs">Full Name</Label>
               <Input
                 id="name"
@@ -116,11 +116,11 @@ export default function RegisterPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                className="h-8 text-sm"
+                className="h-8 text-xs"
               />
             </div>
 
-            <div className="space-y-1">
+            <div className="space-y-0.5">
               <Label htmlFor="email" className="text-xs">Email</Label>
               <Input
                 id="email"
@@ -129,11 +129,11 @@ export default function RegisterPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="h-8 text-sm"
+                className="h-8 text-xs"
               />
             </div>
 
-            <div className="space-y-1">
+            <div className="space-y-0.5">
               <Label htmlFor="studentId" className="text-xs">Student ID</Label>
               <Input
                 id="studentId"
@@ -142,17 +142,17 @@ export default function RegisterPage() {
                 value={studentId}
                 onChange={(e) => setStudentId(e.target.value)}
                 required
-                className="h-8 text-sm"
+                className="h-8 text-xs"
               />
             </div>
 
-            <div className="space-y-1">
+            <div className="space-y-0.5">
               <Label htmlFor="currentSemester" className="text-xs">Current Semester</Label>
               <Select 
                 value={currentSemester.toString()} 
                 onValueChange={(value: string) => setCurrentSemester(parseInt(value))}
               >
-                <SelectTrigger className="w-full h-8 text-sm" id="currentSemester">
+                <SelectTrigger className="w-full h-8 text-xs" id="currentSemester">
                   <SelectValue placeholder="Select Semester" />
                 </SelectTrigger>
                 <SelectContent>
@@ -165,56 +165,58 @@ export default function RegisterPage() {
               </Select>
             </div>
 
-            <div className="space-y-1">
+            <div className="space-y-0.5">
               <Label htmlFor="password" className="text-xs">Password</Label>
               <div className="relative">
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
-                  placeholder="••••••••"
+                  placeholder="password123"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   minLength={6}
-                  className="h-8 text-sm"
+                  className="h-8 text-xs"
                 />
                 <button
                   type="button"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-800"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                   onClick={() => setShowPassword(!showPassword)}
+                  aria-label="Toggle password visibility"
                 >
-                  {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
             </div>
 
-            <div className="space-y-1">
+            <div className="space-y-0.5">
               <Label htmlFor="confirmPassword" className="text-xs">Confirm Password</Label>
               <div className="relative">
                 <Input
                   id="confirmPassword"
                   type={showConfirmPassword ? "text" : "password"}
-                  placeholder="••••••••"
+                  placeholder="password123"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
                   minLength={6}
-                  className="h-8 text-sm"
+                  className="h-8 text-xs"
                 />
                 <button
                   type="button"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-800"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  aria-label="Toggle confirm password visibility"
                 >
-                  {showConfirmPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                  {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
             </div>
           </CardContent>
-          <CardFooter className="flex flex-col space-y-2 pt-2 pb-3">
+          <CardFooter className="flex flex-col space-y-1.5 pt-2 pb-3">
             <Button 
               type="submit" 
-              className="w-full h-8 text-sm bg-gradient-to-r from-primary to-purple-500 hover:from-primary/90 hover:to-purple-500/90 text-white"
+              className="w-full h-8 text-xs bg-gradient-to-r from-primary to-purple-500 hover:from-primary/90 hover:to-purple-500/90 text-white"
               disabled={isLoading}
             >
               {isLoading ? 'Creating Account...' : 'Create Account'}

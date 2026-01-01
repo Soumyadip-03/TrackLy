@@ -59,22 +59,22 @@ export function ConnectionErrorNotification() {
     }
   }, [isConnected, hasShownError, hasShownOfflineMode, hasShownReconnected, success]);
   
-  useEffect(() => {
-    // Show notification when offline mode is enabled
-    if (isOfflineMode && !hasShownOfflineMode) {
-      info(
-        'Offline Mode Enabled',
-        'You are now using the app in offline mode. Your data will be stored locally and synchronized when connection is restored.',
-        { duration: 8000 }
-      );
-      setHasShownOfflineMode(true);
-    }
-    
-    // Reset the flag when offline mode is disabled
-    if (!isOfflineMode && hasShownOfflineMode) {
-      setHasShownOfflineMode(false);
-    }
-  }, [isOfflineMode, hasShownOfflineMode, info]);
+  // useEffect(() => {
+  //   // Show notification when offline mode is enabled
+  //   if (isOfflineMode && !hasShownOfflineMode) {
+  //     info(
+  //       'Offline Mode Enabled',
+  //       'You are now using the app in offline mode. Your data will be stored locally and synchronized when connection is restored.',
+  //       { duration: 8000 }
+  //     );
+  //     setHasShownOfflineMode(true);
+  //   }
+  //   
+  //   // Reset the flag when offline mode is disabled
+  //   if (!isOfflineMode && hasShownOfflineMode) {
+  //     setHasShownOfflineMode(false);
+  //   }
+  // }, [isOfflineMode, hasShownOfflineMode, info]);
   
   // This is a notification-only component, so it doesn't render anything
   return null;

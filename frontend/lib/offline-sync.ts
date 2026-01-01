@@ -1,111 +1,57 @@
-import { fetchWithAuth } from './api'
+import { getFromLocalStorage, saveToLocalStorage } from './storage-utils'
 
-interface UserData {
-  notifications: any[]
-  attendance: any[]
-  points: number
-  todos: any[]
-  subjects: any[]
-  profilePicture?: string
-  name?: string
-  email?: string
-  studentId?: string
-  currentSemester?: number
-}
-
-export const syncUserDataToLocalStorage = async (): Promise<UserData | null> => {
+export async function syncUserDataToLocalStorage(): Promise<boolean> {
   try {
-    const userData: UserData = {
-      notifications: [],
-      attendance: [],
-      points: 0,
-      todos: [],
-      subjects: [],
+    const token = localStorage.getItem('trackly_token')
+    if (!token) {
+      console.error('No token found for offline sync')
+      return false
     }
 
-    // Fetch notifications
-    try {
-      const notifRes = await fetchWithAuth('/notification')
-      if (notifRes.ok) {
-        const notifData = await notifRes.json()
-        userData.notifications = notifData.data || []
-      }
-    } catch (e) {
-      console.warn('Failed to sync notifications:', e)
-    }
-
-    // Fetch attendance
-    try {
-      const attRes = await fetchWithAuth('/attendance')
-      if (attRes.ok) {
-        const attData = await attRes.json()
-        userData.attendance = attData.data || []
-      }
-    } catch (e) {
-      console.warn('Failed to sync attendance:', e)
-    }
-
-    // Fetch todos
-    try {
-      const todoRes = await fetchWithAuth('/todo')
-      if (todoRes.ok) {
-        const todoData = await todoRes.json()
-        userData.todos = todoData.data || []
-      }
-    } catch (e) {
-      console.warn('Failed to sync todos:', e)
-    }
-
-    // Fetch subjects
-    try {
-      const subjRes = await fetchWithAuth('/subject')
-      if (subjRes.ok) {
-        const subjData = await subjRes.json()
-        userData.subjects = subjData.data || []
-      }
-    } catch (e) {
-      console.warn('Failed to sync subjects:', e)
-    }
-
-    // Fetch user profile
-    try {
-      const userRes = await fetchWithAuth('/auth/me')
-      if (userRes.ok) {
-        const userInfo = await userRes.json()
-        const user = userInfo.data || userInfo
-        userData.points = user.points || 0
-        userData.profilePicture = user.profilePicture
-        userData.name = user.name
-        userData.email = user.email
-        userData.studentId = user.studentId
-        userData.currentSemester = user.currentSemester
-      }
-    } catch (e) {
-      console.warn('Failed to sync user profile:', e)
-    }
-
-    // Save to localStorage
-    localStorage.setItem('trackly_offline_data', JSON.stringify(userData))
-    localStorage.setItem('trackly_offline_sync_time', new Date().toISOString())
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
+    console.log('Syncing data from:', apiUrl)
     
-    return userData
+    // Fetch all user data with individual error handling
+    const fetchData = async (endpoint: string) => {
+      try {
+        const res = await fetch(`${apiUrl}${endpoint}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        if (res.ok) {
+          const data = await res.json()
+          return data.data || []
+        }
+        console.error(`Failed to fetch ${endpoint}: ${res.status}`)
+        return []
+      } catch (err) {
+        console.error(`Error fetching ${endpoint}:`, err)
+        return []
+      }
+    }
+
+    const [subjects, attendance, todos] = await Promise.all([
+      fetchData('/subject'),
+      fetchData('/attendance/stats'),
+      fetchData('/todo')
+    ])
+
+    // Save whatever data we got
+    saveToLocalStorage('offline_subjects', subjects)
+    saveToLocalStorage('offline_attendance', attendance)
+    saveToLocalStorage('offline_todos', todos)
+    saveToLocalStorage('offline_mode', true)
+    
+    console.log('Offline data synced:', { subjects: subjects.length, attendance: attendance.length, todos: todos.length })
+    return true
   } catch (error) {
-    console.error('Error syncing user data:', error)
-    return null
+    console.error('Failed to sync data:', error)
+    return false
   }
 }
 
-export const getOfflineUserData = (): UserData | null => {
-  try {
-    const data = localStorage.getItem('trackly_offline_data')
-    return data ? JSON.parse(data) : null
-  } catch (e) {
-    console.error('Error retrieving offline data:', e)
-    return null
-  }
-}
-
-export const clearOfflineData = () => {
-  localStorage.removeItem('trackly_offline_data')
-  localStorage.removeItem('trackly_offline_sync_time')
+export function clearOfflineData(): void {
+  localStorage.removeItem('offline_subjects')
+  localStorage.removeItem('offline_attendance')
+  localStorage.removeItem('offline_todos')
+  localStorage.removeItem('offline_mode')
 }

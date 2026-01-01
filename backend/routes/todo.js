@@ -8,7 +8,7 @@ const { getUserDbConnection, initializeUserDatabase } = require('../utils/dbMana
 // @access  Private
 router.get('/', protect, async (req, res) => {
   try {
-    const { connection, models } = await initializeUserDatabase(req.user._id);
+    const { models } = initializeUserDatabase(req.user._id);
     const todos = await models.Todo.find({ user: req.user._id }).sort({ createdAt: -1 });
     
     res.status(200).json({
@@ -40,7 +40,7 @@ router.post('/', protect, async (req, res) => {
       });
     }
     
-    const { connection, models } = await initializeUserDatabase(req.user._id);
+    const { models } = initializeUserDatabase(req.user._id);
     
     const todo = await models.Todo.create({
       user: req.user._id,
@@ -72,7 +72,7 @@ router.put('/:id', protect, async (req, res) => {
   try {
     const { title, description, dueDate, priority, completed } = req.body;
     
-    const { connection, models } = await initializeUserDatabase(req.user._id);
+    const { models } = initializeUserDatabase(req.user._id);
     
     let todo = await models.Todo.findOne({ _id: req.params.id, user: req.user._id });
     
@@ -111,7 +111,7 @@ router.put('/:id', protect, async (req, res) => {
 // @access  Private
 router.delete('/:id', protect, async (req, res) => {
   try {
-    const { connection, models } = await initializeUserDatabase(req.user._id);
+    const { models } = initializeUserDatabase(req.user._id);
     
     const todo = await models.Todo.findOneAndDelete({ _id: req.params.id, user: req.user._id });
     
@@ -141,7 +141,7 @@ router.delete('/:id', protect, async (req, res) => {
 // @access  Private
 router.patch('/:id/toggle', protect, async (req, res) => {
   try {
-    const { connection, models } = await initializeUserDatabase(req.user._id);
+    const { models } = initializeUserDatabase(req.user._id);
     
     const todo = await models.Todo.findOne({ _id: req.params.id, user: req.user._id });
     

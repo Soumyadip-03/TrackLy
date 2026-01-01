@@ -92,10 +92,20 @@ export function getFromLocalStorage<T>(key: string, defaultValue: T): T {
       const legacyKey = `trackly_${key}`;
       const legacyData = localStorage.getItem(legacyKey);
       if (legacyData) {
-        // Migrate legacy data to user-specific storage
-        const parsedData = JSON.parse(legacyData);
-        saveToLocalStorage(key, parsedData);
-        return parsedData;
+        try {
+          // Only try to parse as JSON if it looks like JSON
+          if (legacyData.startsWith('{') || legacyData.startsWith('[') || legacyData === 'true' || legacyData === 'false' || legacyData === 'null' || !isNaN(Number(legacyData))) {
+            const parsedData = JSON.parse(legacyData);
+            saveToLocalStorage(key, parsedData);
+            return parsedData;
+          } else {
+            // For non-JSON data (like tokens), return as string if T is string, otherwise return default
+            return (typeof defaultValue === 'string' ? legacyData as T : defaultValue);
+          }
+        } catch (parseError) {
+          console.warn(`Failed to parse legacy data for key ${key}:`, parseError);
+          return defaultValue;
+        }
       }
     }
     

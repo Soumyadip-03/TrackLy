@@ -9,7 +9,7 @@ const { protect } = require('../middleware/auth');
 // @access  Private
 router.get('/', protect, async (req, res) => {
   try {
-    const subjects = await req.userDb.models.Subject.find()
+    const subjects = await Subject.find({ user: req.user._id })
       .sort({ semester: 1, name: 1 });
 
     res.status(200).json({
@@ -31,7 +31,8 @@ router.get('/', protect, async (req, res) => {
 // @access  Private
 router.get('/semester/:semester', protect, async (req, res) => {
   try {
-    const subjects = await req.userDb.models.Subject.find({ 
+    const subjects = await Subject.find({ 
+      user: req.user._id,
       semester: req.params.semester
     }).sort({ name: 1 });
 
@@ -54,7 +55,7 @@ router.get('/semester/:semester', protect, async (req, res) => {
 // @access  Private
 router.get('/:id', protect, async (req, res) => {
   try {
-    const subject = await req.userDb.models.Subject.findById(req.params.id);
+    const subject = await Subject.findOne({ _id: req.params.id, user: req.user._id });
 
     if (!subject) {
       return res.status(404).json({
@@ -96,7 +97,8 @@ router.post(
       const { name, code, classType, semester, schedule, classesPerWeek } = req.body;
 
       // Create subject
-      const subject = await req.userDb.models.Subject.create({
+      const subject = await Subject.create({
+        user: req.user._id,
         name,
         code,
         classType: classType || 'none',
@@ -124,7 +126,7 @@ router.post(
 // @access  Private
 router.put('/:id', protect, async (req, res) => {
   try {
-    let subject = await req.userDb.models.Subject.findById(req.params.id);
+    let subject = await Subject.findOne({ _id: req.params.id, user: req.user._id });
 
     if (!subject) {
       return res.status(404).json({
@@ -162,7 +164,7 @@ router.put('/:id', protect, async (req, res) => {
 // @access  Private
 router.delete('/:id', protect, async (req, res) => {
   try {
-    const subject = await req.userDb.models.Subject.findById(req.params.id);
+    const subject = await Subject.findOne({ _id: req.params.id, user: req.user._id });
 
     if (!subject) {
       return res.status(404).json({

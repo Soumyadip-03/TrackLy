@@ -1,0 +1,1 @@
+At the end of a day's work when i will say "end of the day" then always generate a doc md file, name the doc as the calander date you working on the project and in the doc write every chages and their logic from beging to end..

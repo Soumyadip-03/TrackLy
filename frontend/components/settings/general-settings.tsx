@@ -8,14 +8,13 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { toast } from "@/components/ui/use-toast"
 import { getFromLocalStorage, saveToLocalStorage } from "@/lib/storage-utils"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { toggleNotificationSound } from "@/lib/sound-utils"
 
 interface GeneralSettingsData {
   notificationSound: boolean
   loginNotificationSound: boolean | null
   browserNotifications: boolean
-  notificationPriority: string
+  mutedTypes: string[]
 }
 
 export function GeneralSettings() {
@@ -23,7 +22,7 @@ export function GeneralSettings() {
     notificationSound: true,
     loginNotificationSound: true,
     browserNotifications: true,
-    notificationPriority: "all"
+    mutedTypes: []
   }
 
   const [settings, setSettings] = useState<GeneralSettingsData>(defaultSettings)
@@ -31,9 +30,11 @@ export function GeneralSettings() {
 
   useEffect(() => {
     const savedSettings = getFromLocalStorage<any>('notification_settings', {})
+    const savedMutedTypes = getFromLocalStorage<string[]>('muted_notification_types', [])
     const mergedSettings = {
       ...defaultSettings,
-      ...savedSettings
+      ...savedSettings,
+      mutedTypes: savedMutedTypes.length > 0 ? savedMutedTypes : (savedSettings.mutedTypes || [])
     }
     setSettings(mergedSettings)
 
@@ -53,7 +54,9 @@ export function GeneralSettings() {
 
   const handleSwitchChange = (name: string) => {
     setSettings((prev) => {
-      const newSettings = { ...prev, [name]: !prev[name as keyof typeof prev] }
+      const currentValue = prev[name as keyof typeof prev]
+      const newValue = typeof currentValue === 'boolean' ? !currentValue : true
+      const newSettings = { ...prev, [name]: newValue }
       
       // Save immediately
       const existingSettings = getFromLocalStorage<any>('notification_settings', {})
@@ -61,15 +64,15 @@ export function GeneralSettings() {
       saveToLocalStorage('notification_settings', updatedSettings)
       
       if (name === "notificationSound") {
-        toggleNotificationSound(!prev.notificationSound)
+        toggleNotificationSound(newValue as boolean)
         window.dispatchEvent(new CustomEvent('notificationSoundChanged', { 
-          detail: { enabled: !prev.notificationSound } 
+          detail: { enabled: newValue } 
         }))
       }
       
-      if (name === "browserNotifications" && !prev.browserNotifications) {
-        if ('Notification' in window && Notification.permission === 'default') {
-          Notification.requestPermission()
+      if (name === "browserNotifications" && newValue) {
+        if (typeof window !== 'undefined' && window.Notification && window.Notification.permission === 'default') {
+          window.Notification.requestPermission()
         }
       }
       
@@ -79,36 +82,24 @@ export function GeneralSettings() {
     })
   }
 
-  const handleSelectChange = (name: string, value: string) => {
-    setSettings((prev) => ({ ...prev, [name]: value }))
-  }
-
-  const handleSave = () => {
-    setIsSaving(true)
-    
-    try {
-      const existingSettings = getFromLocalStorage<any>('notification_settings', {})
-      const updatedSettings = { ...existingSettings, ...settings }
-      saveToLocalStorage('notification_settings', updatedSettings)
-      saveToLocalStorage('notification_priority', settings.notificationPriority)
+  const handleMutedTypeChange = (type: string, checked: boolean) => {
+    setSettings(prev => {
+      const newSettings = checked
+        ? { ...prev, mutedTypes: [...prev.mutedTypes, type] }
+        : { ...prev, mutedTypes: prev.mutedTypes.filter(t => t !== type) }
       
+      const existingSettings = getFromLocalStorage<any>('notification_settings', {})
+      const updatedSettings = { ...existingSettings, ...newSettings }
+      saveToLocalStorage('notification_settings', updatedSettings)
+      saveToLocalStorage('muted_notification_types', newSettings.mutedTypes)
       window.dispatchEvent(new CustomEvent('settingsUpdated'))
       
-      toast({
-        title: "Settings Saved",
-        description: "Your general settings have been updated successfully.",
-      })
-      
-    } catch (error) {
-      console.error("Error saving settings:", error)
-      toast({
-        title: "Settings Issue",
-        description: "There was a problem saving your settings.",
-        variant: "destructive",
-      })
-    } finally {
-      setIsSaving(false)
-    }
+      return newSettings
+    })
+  }
+
+  const isMutedType = (type: string): boolean => {
+    return settings.mutedTypes.includes(type)
   }
 
   return (
@@ -125,8 +116,37 @@ export function GeneralSettings() {
           </div>
           <Switch
             id="notification-sound"
-            checked={settings.notificationSound}
-            onCheckedChange={() => handleSwitchChange("notificationSound")}
+            checked={!!settings.notificationSound}
+            onCheckedChange={async (checked) => {
+              setSettings(prev => {
+                const newSettings = { ...prev, notificationSound: checked }
+                const existingSettings = getFromLocalStorage<any>('notification_settings', {})
+                const updatedSettings = { ...existingSettings, ...newSettings }
+                saveToLocalStorage('notification_settings', updatedSettings)
+                toggleNotificationSound(checked)
+                
+                // Play test sound when enabled
+                if (checked) {
+                  const audioContext = new AudioContext()
+                  const oscillator = audioContext.createOscillator()
+                  const gainNode = audioContext.createGain()
+                  
+                  oscillator.frequency.setValueAtTime(440, audioContext.currentTime)
+                  gainNode.gain.setValueAtTime(0.3, audioContext.currentTime)
+                  
+                  oscillator.connect(gainNode)
+                  gainNode.connect(audioContext.destination)
+                  
+                  oscillator.start()
+                  gainNode.gain.exponentialRampToValueAtTime(0.00001, audioContext.currentTime + 1)
+                  oscillator.stop(audioContext.currentTime + 1)
+                }
+                
+                window.dispatchEvent(new CustomEvent('notificationSoundChanged', { detail: { enabled: checked } }))
+                window.dispatchEvent(new CustomEvent('settingsUpdated'))
+                return newSettings
+              })
+            }}
           />
         </div>
         
@@ -138,7 +158,26 @@ export function GeneralSettings() {
           <Switch
             id="login-notification-sound"
             checked={settings.loginNotificationSound !== false}
-            onCheckedChange={() => handleSwitchChange("loginNotificationSound")}
+            onCheckedChange={(checked) => {
+              handleSwitchChange("loginNotificationSound")
+              
+              // Play test sound when enabled
+              if (checked) {
+                const audioContext = new AudioContext()
+                const oscillator = audioContext.createOscillator()
+                const gainNode = audioContext.createGain()
+                
+                oscillator.frequency.setValueAtTime(523.25, audioContext.currentTime)
+                gainNode.gain.setValueAtTime(0.15, audioContext.currentTime)
+                
+                oscillator.connect(gainNode)
+                gainNode.connect(audioContext.destination)
+                
+                oscillator.start()
+                gainNode.gain.exponentialRampToValueAtTime(0.00001, audioContext.currentTime + 1)
+                oscillator.stop(audioContext.currentTime + 1)
+              }
+            }}
           />
         </div>
         
@@ -155,28 +194,70 @@ export function GeneralSettings() {
         </div>
         
         <div className="space-y-2 border-t pt-4">
-          <Label>Priority Level</Label>
-          <p className="text-xs text-muted-foreground mb-2">Choose which priority levels to show</p>
+          <Label>Mute Specific Notifications</Label>
+          <p className="text-xs text-muted-foreground mb-2">Select notification types you want to mute</p>
           
-          <RadioGroup 
-            value={settings.notificationPriority} 
-            onValueChange={(value) => handleSelectChange("notificationPriority", value)}
-          >
+          <div className="space-y-2">
             <div className="flex items-center space-x-2">
-              <RadioGroupItem value="all" id="priority-all" />
-              <Label htmlFor="priority-all">All Notifications</Label>
+              <input 
+                type="checkbox"
+                id="mute-attendance" 
+                checked={isMutedType('attendance')}
+                onChange={(e) => handleMutedTypeChange('attendance', e.target.checked)}
+                className="h-4 w-4"
+              />
+              <Label htmlFor="mute-attendance">Attendance Reminders</Label>
             </div>
+            
             <div className="flex items-center space-x-2">
-              <RadioGroupItem value="high" id="priority-high" />
-              <Label htmlFor="priority-high">High Priority Only</Label>
+              <input 
+                type="checkbox"
+                id="mute-todo" 
+                checked={isMutedType('todo')}
+                onChange={(e) => handleMutedTypeChange('todo', e.target.checked)}
+                className="h-4 w-4"
+              />
+              <Label htmlFor="mute-todo">To-Do Reminders</Label>
             </div>
+            
             <div className="flex items-center space-x-2">
-              <RadioGroupItem value="medium" id="priority-medium" />
-              <Label htmlFor="priority-medium">Medium Priority & Above</Label>
+              <input 
+                type="checkbox"
+                id="mute-calendar" 
+                checked={isMutedType('calendar')}
+                onChange={(e) => handleMutedTypeChange('calendar', e.target.checked)}
+                className="h-4 w-4"
+              />
+              <Label htmlFor="mute-calendar">Calendar Events</Label>
             </div>
-          </RadioGroup>
+            
+            <div className="flex items-center space-x-2">
+              <input 
+                type="checkbox"
+                id="mute-points" 
+                checked={isMutedType('points')}
+                onChange={(e) => handleMutedTypeChange('points', e.target.checked)}
+                className="h-4 w-4"
+              />
+              <Label htmlFor="mute-points">Points & Achievements</Label>
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <input 
+                type="checkbox"
+                id="mute-system" 
+                checked={isMutedType('system')}
+                onChange={(e) => handleMutedTypeChange('system', e.target.checked)}
+                className="h-4 w-4"
+              />
+              <Label htmlFor="mute-system">System Notifications</Label>
+            </div>
+          </div>
         </div>
       </CardContent>
+      <CardFooter className="text-xs text-muted-foreground">
+        Settings are saved automatically when you make changes.
+      </CardFooter>
     </Card>
   )
 }

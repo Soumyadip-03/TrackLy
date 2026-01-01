@@ -1,15 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const { protect } = require('../middleware/auth');
-const { getUserDbConnection, initializeUserDatabase } = require('../utils/dbManager');
+const { initializeUserDatabase } = require('../utils/dbManager');
+const Notification = require('../models/Notification');
 
 // @route   GET /api/notification
 // @desc    Get all notifications for the logged-in user
 // @access  Private
 router.get('/', protect, async (req, res) => {
   try {
-    const { connection, models } = await initializeUserDatabase(req.user._id);
-    const notifications = await models.Notification.find({ user: req.user._id })
+    const notifications = await Notification.find({ user: req.user._id })
       .sort({ createdAt: -1 })
       .limit(100);
     
@@ -33,23 +33,41 @@ router.get('/', protect, async (req, res) => {
 // @access  Private
 router.post('/generate', protect, async (req, res) => {
   try {
-    const { connection, models } = await initializeUserDatabase(req.user._id);
+    const { models } = initializeUserDatabase(req.user._id);
+    const User = require('../models/User');
     
-    // Get user settings (you can expand this)
-    const settings = {
-      todoReminderDays: 1,
-      priorityOnly: false
-    };
+    // Get user settings from database
+    const user = await User.findById(req.user._id);
+    const todoRemindersEnabled = user.notificationPreferences?.todoReminders !== false;
+    const todoReminderDays = parseInt(user.notificationPreferences?.todoReminderTime || '1');
+    const priorityOnly = user.notificationPreferences?.priorityTodosOnly || false;
     
     const generatedNotifications = [];
     const now = new Date();
     
+    // Only generate if todo reminders are enabled
+    if (!todoRemindersEnabled) {
+      return res.status(200).json({
+        success: true,
+        count: 0,
+        data: [],
+        message: 'Todo reminders are disabled'
+      });
+    }
+    
     // Get todos
-    const todos = await models.Todo.find({ 
+    let todoQuery = { 
       user: req.user._id, 
       completed: false,
       dueDate: { $ne: null }
-    });
+    };
+    
+    // Filter by priority if enabled
+    if (priorityOnly) {
+      todoQuery.priority = 'high';
+    }
+    
+    const todos = await models.Todo.find(todoQuery);
     
     // Generate todo reminders
     for (const todo of todos) {
@@ -60,18 +78,18 @@ router.post('/generate', protect, async (req, res) => {
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       
       // Check if notification already exists
-      const existingNotif = await models.Notification.findOne({
+      const existingNotif = await Notification.findOne({
         user: req.user._id,
         relatedTo: todo._id,
         onModel: 'Todo',
         createdAt: { $gte: new Date(now.getTime() - 24 * 60 * 60 * 1000) } // Last 24 hours
       });
       
-      if (!existingNotif && diffDays <= settings.todoReminderDays && diffDays >= 0) {
+      if (!existingNotif && diffDays <= todoReminderDays && diffDays >= 0) {
         const priority = diffDays === 0 ? 'high' : (diffDays === 1 ? 'medium' : 'low');
         const type = diffDays === 0 ? 'alert' : 'reminder';
         
-        const notification = await models.Notification.create({
+        const notification = await Notification.create({
           user: req.user._id,
           title: diffDays === 0 ? 'Task Due Today' : 'Upcoming Task',
           message: `"${todo.title}" is due ${diffDays === 0 ? 'today' : 'in ' + diffDays + ' day' + (diffDays > 1 ? 's' : '')}.`,
@@ -106,9 +124,7 @@ router.post('/generate', protect, async (req, res) => {
 // @access  Private
 router.patch('/read-all', protect, async (req, res) => {
   try {
-    const { connection, models } = await initializeUserDatabase(req.user._id);
-    
-    await models.Notification.updateMany(
+    await Notification.updateMany(
       { user: req.user._id, read: false },
       { read: true }
     );
@@ -132,9 +148,7 @@ router.patch('/read-all', protect, async (req, res) => {
 // @access  Private
 router.delete('/clear-all', protect, async (req, res) => {
   try {
-    const { connection, models } = await initializeUserDatabase(req.user._id);
-    
-    await models.Notification.deleteMany({ user: req.user._id });
+    await Notification.deleteMany({ user: req.user._id });
     
     res.status(200).json({
       success: true,
@@ -155,9 +169,7 @@ router.delete('/clear-all', protect, async (req, res) => {
 // @access  Private
 router.patch('/:id/read', protect, async (req, res) => {
   try {
-    const { connection, models } = await initializeUserDatabase(req.user._id);
-    
-    const notification = await models.Notification.findOne({
+    const notification = await Notification.findOne({
       _id: req.params.id,
       user: req.user._id
     });
@@ -191,9 +203,7 @@ router.patch('/:id/read', protect, async (req, res) => {
 // @access  Private
 router.delete('/:id', protect, async (req, res) => {
   try {
-    const { connection, models } = await initializeUserDatabase(req.user._id);
-    
-    const notification = await models.Notification.findOneAndDelete({
+    const notification = await Notification.findOneAndDelete({
       _id: req.params.id,
       user: req.user._id
     });

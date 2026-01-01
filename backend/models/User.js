@@ -85,12 +85,74 @@ const UserSchema = new mongoose.Schema({
         type: [String],
         default: []
       }
+    },
+    attendanceReminders: {
+      type: Boolean,
+      default: true
+    },
+    attendanceThreshold: {
+      type: String,
+      default: '75'
+    },
+    attendanceReminderFrequency: {
+      type: String,
+      enum: ['daily', 'weekly', 'monthly', 'never'],
+      default: 'never'
+    },
+    todoReminders: {
+      type: Boolean,
+      default: true
+    },
+    todoReminderTime: {
+      type: String,
+      default: '1'
+    },
+    priorityTodosOnly: {
+      type: Boolean,
+      default: false
+    },
+    calendarReminders: {
+      type: Boolean,
+      default: true
+    },
+    calendarReminderTime: {
+      type: String,
+      default: '1'
     }
   },
+  loginHistory: [{
+    timestamp: Date,
+    ipAddress: String,
+    userAgent: String,
+    deviceInfo: {
+      os: String,
+      browser: String
+    }
+  }],
+  emailHistory: [{
+    emailType: String,
+    subject: String,
+    sentAt: Date,
+    status: String
+  }],
+  accountActivity: [{
+    action: String,
+    timestamp: Date,
+    details: Object
+  }],
   lastAttendanceUpdate: {
     type: Date,
     default: Date.now
   },
+  holidays: [{
+    date: Date,
+    name: String,
+    description: String,
+    createdAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
   createdAt: {
     type: Date,
     default: Date.now
