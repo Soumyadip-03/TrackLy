@@ -207,9 +207,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
     }
+    
+    const handleUserUpdate = () => {
+      console.log('User update event received in auth context');
+      const storedUser = localStorage.getItem('trackly_user')
+      if (storedUser) {
+        try {
+          const userData = JSON.parse(storedUser)
+          console.log('Updating user data:', userData);
+          setUser(userData)
+        } catch (e) {
+          console.error('Error parsing updated user:', e)
+        }
+      }
+    }
 
     window.addEventListener('profilePictureUpdated', handleProfilePictureUpdate)
-    return () => window.removeEventListener('profilePictureUpdated', handleProfilePictureUpdate)
+    window.addEventListener('userUpdated', handleUserUpdate)
+    return () => {
+      window.removeEventListener('profilePictureUpdated', handleProfilePictureUpdate)
+      window.removeEventListener('userUpdated', handleUserUpdate)
+    }
   }, [])
 
   const signUp = async (email: string, password: string, name?: string, studentId?: string, currentSemester?: number) => {

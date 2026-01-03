@@ -123,6 +123,13 @@ export function AcademicPeriodSelector() {
         console.error('Failed to update user semester');
       }
       
+      // Update user in localStorage
+      const storedUser = localStorage.getItem('trackly_user');
+      if (storedUser) {
+        const updatedUser = { ...JSON.parse(storedUser), currentSemester: parseInt(currentSemester) };
+        localStorage.setItem('trackly_user', JSON.stringify(updatedUser));
+      }
+      
       setIsPeriodSaved(true);
       toast({
         title: "Success",
@@ -137,6 +144,9 @@ export function AcademicPeriodSelector() {
         } 
       });
       window.dispatchEvent(event);
+      
+      // Trigger re-render by dispatching custom event
+      window.dispatchEvent(new Event('userUpdated'));
     } catch (error) {
       console.error("Error saving academic period:", error);
       toast({
@@ -227,7 +237,7 @@ export function AcademicPeriodSelector() {
                 </SelectTrigger>
                 <SelectContent>
                   {[1, 2, 3, 4, 5, 6, 7, 8]
-                    .filter(sem => sem >= userBaseSemester)
+                    .filter(sem => sem >= (user?.currentSemester || 1))
                     .map(sem => (
                       <SelectItem key={sem} value={sem.toString()}>
                         Semester {sem}
