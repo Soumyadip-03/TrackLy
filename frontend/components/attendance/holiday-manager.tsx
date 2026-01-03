@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Trash2, Calendar, Plus } from "lucide-react"
 import { toast } from "@/components/ui/use-toast"
 import { getFromLocalStorage } from "@/lib/storage-utils"
-import { buildApiUrl } from "@/lib/api"
+import { fetchWithAuth } from "@/lib/api"
 
 interface Holiday {
   id: string
@@ -49,6 +49,26 @@ export function HolidayManager({ currentSemester, startDate, endDate, onHolidayA
     { value: "11", label: "November" },
     { value: "12", label: "December" }
   ]
+
+  const getValidMonths = () => {
+    if (!startDate || !endDate) return []
+    
+    const startMonth = startDate.getMonth() + 1 // 0-indexed to 1-indexed
+    const endMonth = endDate.getMonth() + 1
+    const startYear = startDate.getFullYear()
+    const endYear = endDate.getFullYear()
+    
+    // If same year, return months between start and end
+    if (startYear === endYear) {
+      return months.filter(m => {
+        const monthNum = parseInt(m.value)
+        return monthNum >= startMonth && monthNum <= endMonth
+      })
+    }
+    
+    // If different years, return all months (academic period spans multiple years)
+    return months
+  }
 
   const getDaysInMonth = (month: number, year: number) => {
     return new Date(year, month, 0).getDate()
@@ -130,19 +150,13 @@ export function HolidayManager({ currentSemester, startDate, endDate, onHolidayA
       return
     }
 
-    const existingHoliday = false // We'll let the backend handle duplicate checking
-
     setIsLoading(true)
     try {
       const years = getValidYears()
       const year = years.length > 0 ? years[0] : new Date().getFullYear()
       
-      const response = await fetch(buildApiUrl('/holidays'), {
+      const response = await fetchWithAuth('/holidays', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${getFromLocalStorage('trackly_token', '')}`
-        },
         body: JSON.stringify({
           day,
           month,
@@ -217,7 +231,7 @@ export function HolidayManager({ currentSemester, startDate, endDate, onHolidayA
                 <SelectValue placeholder="Select month" />
               </SelectTrigger>
               <SelectContent>
-                {months.map(month => (
+                {getValidMonths().map(month => (
                   <SelectItem key={month.value} value={month.value}>
                     {month.label}
                   </SelectItem>

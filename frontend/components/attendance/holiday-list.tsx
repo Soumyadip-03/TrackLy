@@ -7,15 +7,15 @@ import { Badge } from "@/components/ui/badge"
 import { Trash2, Edit, Calendar } from "lucide-react"
 import { toast } from "@/components/ui/use-toast"
 import { getFromLocalStorage } from "@/lib/storage-utils"
-import { buildApiUrl } from "@/lib/api"
+import { fetchWithAuth } from "@/lib/api"
 
 interface Holiday {
-  id: string
+  _id: string
   day: number
   month: number
   year: number
   reason?: string
-  semester: string
+  academicPeriodId: string
   createdAt: string
 }
 
@@ -34,16 +34,11 @@ export function HolidayList({ currentSemester, onRefresh }: HolidayListProps) {
 
   const loadHolidays = async () => {
     try {
-      const response = await fetch(buildApiUrl('/holidays'), {
-        headers: {
-          'Authorization': `Bearer ${getFromLocalStorage('trackly_token', '')}`
-        }
-      })
+      const response = await fetchWithAuth(`/holidays/${currentSemester}`)
       
       if (response.ok) {
         const data = await response.json()
-        const semesterHolidays = data.data.filter((h: any) => h.semester === currentSemester)
-        setHolidays(semesterHolidays)
+        setHolidays(data.data || [])
       }
     } catch (error) {
       console.error('Error loading holidays:', error)
@@ -74,11 +69,8 @@ export function HolidayList({ currentSemester, onRefresh }: HolidayListProps) {
     }
 
     try {
-      const response = await fetch(buildApiUrl(`/holidays/${holiday.id}`), {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${getFromLocalStorage('trackly_token', '')}`
-        }
+      const response = await fetchWithAuth(`/holidays/${holiday._id}`, {
+        method: 'DELETE'
       })
 
       if (response.ok) {
@@ -127,7 +119,7 @@ export function HolidayList({ currentSemester, onRefresh }: HolidayListProps) {
               const isPast = isDateInPast(holiday.day, holiday.month, holiday.year)
               return (
                 <div 
-                  key={holiday.id} 
+                  key={holiday._id} 
                   className={`flex items-center justify-between p-2 border rounded-lg ${
                     isPast ? 'bg-muted/50 opacity-75' : 'bg-background'
                   }`}

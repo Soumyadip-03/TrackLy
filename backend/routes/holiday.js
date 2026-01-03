@@ -1,17 +1,53 @@
 const express = require('express');
 const router = express.Router();
+const Holiday = require('../models/Holiday');
+const AcademicPeriod = require('../models/AcademicPeriod');
 const { protect } = require('../middleware/auth');
 
-// @desc    Get user's holidays
+// @desc    Get holidays for a specific academic period
+// @route   GET /api/holidays/:semester
+// @access  Private
+router.get('/:semester', protect, async (req, res) => {
+  try {
+    // Find academic period for this semester
+    const academicPeriod = await AcademicPeriod.findOne({
+      userId: req.user.id,
+      semester: req.params.semester
+    });
+    
+    if (!academicPeriod) {
+      return res.status(200).json({
+        success: true,
+        data: []
+      });
+    }
+    
+    // Get holidays for this academic period
+    const holidays = await Holiday.find({ academicPeriodId: academicPeriod._id }).sort({ month: 1, day: 1 });
+    
+    res.status(200).json({
+      success: true,
+      data: holidays
+    });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({
+      success: false,
+      error: 'Server error'
+    });
+  }
+});
+
+// @desc    Get all holidays for user
 // @route   GET /api/holidays
 // @access  Private
 router.get('/', protect, async (req, res) => {
   try {
-    const user = await req.userDb.models.User.findById(req.user.id);
+    const holidays = await Holiday.find({ userId: req.user.id }).sort({ year: 1, month: 1, day: 1 });
     
     res.status(200).json({
       success: true,
-      data: user?.holidays || []
+      data: holidays
     });
   } catch (err) {
     console.error(err.message);
@@ -35,39 +71,41 @@ router.post('/', protect, async (req, res) => {
         error: 'Day, month, year, and semester are required'
       });
     }
+    
+    // Find academic period
+    const academicPeriod = await AcademicPeriod.findOne({
+      userId: req.user.id,
+      semester: semester
+    });
+    
+    if (!academicPeriod) {
+      return res.status(404).json({
+        success: false,
+        error: 'Academic period not found for this semester'
+      });
+    }
+    
+    // Create holiday
+    const holiday = await Holiday.create({
+      academicPeriodId: academicPeriod._id,
+      userId: req.user.id,
+      day: parseInt(day),
+      month: parseInt(month),
+      year: parseInt(year),
+      reason: reason || ''
+    });
 
-    const user = await req.userDb.models.User.findById(req.user.id);
-    
-    // Check if holiday already exists for this date and semester
-    const existingHoliday = user.holidays.find(h => 
-      h.day === day && h.month === month && h.year === year && h.semester === semester
-    );
-    
-    if (existingHoliday) {
+    res.status(200).json({
+      success: true,
+      data: holiday
+    });
+  } catch (err) {
+    if (err.code === 11000) {
       return res.status(400).json({
         success: false,
         error: 'Holiday already exists for this date'
       });
     }
-    
-    const holidayData = {
-      id: new Date().getTime().toString(),
-      day: parseInt(day),
-      month: parseInt(month),
-      year: parseInt(year),
-      reason: reason || '',
-      semester: semester,
-      createdAt: new Date()
-    };
-    
-    user.holidays.push(holidayData);
-    await user.save();
-
-    res.status(200).json({
-      success: true,
-      data: user.holidays.filter(h => h.semester === semester)
-    });
-  } catch (err) {
     console.error(err.message);
     res.status(500).json({
       success: false,
@@ -81,23 +119,21 @@ router.post('/', protect, async (req, res) => {
 // @access  Private
 router.delete('/:id', protect, async (req, res) => {
   try {
-    const user = await req.userDb.models.User.findById(req.user.id);
+    const holiday = await Holiday.findOneAndDelete({
+      _id: req.params.id,
+      userId: req.user.id
+    });
     
-    const holidayIndex = user.holidays.findIndex(h => h.id === req.params.id);
-    
-    if (holidayIndex === -1) {
+    if (!holiday) {
       return res.status(404).json({
         success: false,
         error: 'Holiday not found'
       });
     }
-    
-    user.holidays.splice(holidayIndex, 1);
-    await user.save();
 
     res.status(200).json({
       success: true,
-      data: user.holidays
+      message: 'Holiday deleted'
     });
   } catch (err) {
     console.error(err.message);
