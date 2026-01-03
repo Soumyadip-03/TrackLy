@@ -58,7 +58,10 @@ exports.initializeUserDatabase = (userId) => {
     Attendance: require('../models/Attendance'),
     Subject: require('../models/Subject'),
     Notification: require('../models/Notification'),
-    ProjectVersion: require('../models/ProjectVersion')
+    Schedule: require('../models/Schedule'),
+    AttendanceRecord: require('../models/AttendanceRecord'),
+    ChatHistory: require('../models/ChatHistory'),
+    Upload: require('../models/Upload')
   };
   
   return {

@@ -32,7 +32,8 @@
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
     "pdf-parse": "^1.1.1",
-    "pdfreader": "^3.0.2"
+    "pdfreader": "^3.0.2",
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.10"

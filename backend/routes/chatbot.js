@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { body, validationResult } = require('express-validator');
 const OpenAI = require('openai');
+const ChatHistory = require('../models/ChatHistory');
 const { protect } = require('../middleware/auth');
 
 // Initialize OpenAI lazily (only when API key is available)
@@ -52,15 +53,11 @@ function generateFallbackResponse(message, userName) {
 // @access  Private
 router.get('/history', protect, async (req, res) => {
   try {
-    // Get conversation history from user-specific database
-    const chatHistory = await req.userDb.models.UserInfo.findOne(
-      { mainUserId: req.user._id },
-      { 'chatHistory': 1 }
-    );
+    const chatHistory = await ChatHistory.find({ userId: req.user._id }).sort({ timestamp: 1 }).limit(20);
     
     res.status(200).json({
       success: true,
-      data: chatHistory?.chatHistory || []
+      data: chatHistory
     });
   } catch (err) {
     console.error('Error retrieving chat history:', err);
@@ -136,24 +133,9 @@ router.post(
         isLocalFallback = true;
       }
 
-      // Store the conversation in the user-specific database
-      // First, get the current chat history
-      const userInfo = await req.userDb.models.UserInfo.findOne({ mainUserId: req.user._id });
-      
-      // Initialize or update chat history
-      const chatHistory = userInfo?.chatHistory || [];
-      chatHistory.push({ role: 'user', content: message });
-      chatHistory.push({ role: 'assistant', content: aiResponse, timestamp: new Date() });
-      
-      // Limit chat history to last 20 messages (10 exchanges)
-      const limitedHistory = chatHistory.slice(-20);
-      
-      // Update the user info with the new chat history
-      await req.userDb.models.UserInfo.findOneAndUpdate(
-        { mainUserId: req.user._id },
-        { $set: { chatHistory: limitedHistory } },
-        { new: true, upsert: true }
-      );
+      // Store the conversation
+      await ChatHistory.create({ userId: req.user._id, role: 'user', content: message });
+      await ChatHistory.create({ userId: req.user._id, role: 'assistant', content: aiResponse });
 
       return res.status(200).json({
         success: true,
@@ -178,11 +160,7 @@ router.post(
 // @access  Private
 router.delete('/history', protect, async (req, res) => {
   try {
-    // Clear chat history in user-specific database
-    await req.userDb.models.UserInfo.findOneAndUpdate(
-      { mainUserId: req.user._id },
-      { $set: { chatHistory: [] } }
-    );
+    await ChatHistory.deleteMany({ userId: req.user._id });
     
     res.status(200).json({
       success: true,

@@ -146,6 +146,29 @@ export class SubjectService extends BaseService {
     }
   }
 
+  async clearAll(): Promise<boolean> {
+    try {
+      const userId = await this.getCurrentUserId();
+      if (!userId) return false;
+
+      saveToLocalStorage('subjects', []);
+
+      const response = await fetchWithAuth('/subject/clear/all', {
+        method: 'DELETE'
+      });
+
+      if (!response.ok) {
+        this.handleError(null, 'clearing all subjects');
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      this.handleError(error, 'clearing all subjects');
+      return false;
+    }
+  }
+
   private getSubjectsFromLocalStorage(): Subject[] {
     return getFromLocalStorage<Subject[]>('subjects', []);
   }

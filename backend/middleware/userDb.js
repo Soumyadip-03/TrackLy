@@ -53,6 +53,6 @@ exports.setupUserDatabase = async (user) => {
  * @returns {Promise<Object>} - Result of the update operation
  */
 exports.updateUserInfo = async (user) => {
-  // No-op: User data is stored in main User model
+  // No-op: Deprecated function, no longer uses UserInfo
   return { success: true };
 }; 

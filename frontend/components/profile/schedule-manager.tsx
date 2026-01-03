@@ -4,33 +4,17 @@ import React from "react"
 import { useState, useEffect } from "react"
 import { Save, Trash2, Clock, Home, BookOpen, Plus, Copy, CalendarOff } from "lucide-react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-
-// Define subject interface
-interface Subject {
-  id: string;
-  name: string;
-  code: string;
-  classType: string;
-  classesPerWeek: number;
-}
-
-// Add type definition for class type data
-interface ClassTypeData {
-  count: number;
-  type: string;
-}
-
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "@/components/ui/use-toast"
-import { getFromLocalStorage, saveToLocalStorage } from "@/lib/storage-utils"
 import { subjectService } from "@/lib/services/subject-service"
 import { fetchWithAuth } from "@/lib/api"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 interface ClassEntry {
   id: string;
@@ -113,7 +97,7 @@ export function ScheduleManager({ onUpdateAction }: ScheduleManagerProps = {}) {
 
   // Update parent when schedule or off days change
   useEffect(() => {
-    onUpdateAction(schedule);
+    onUpdateAction?.(schedule);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schedule, offDays]);
 
@@ -274,6 +258,10 @@ export function ScheduleManager({ onUpdateAction }: ScheduleManagerProps = {}) {
     });
   };
 
+  const getClassCount = (day: string) => {
+    return schedule.classes.filter(entry => entry.day === day).length;
+  };
+
   const filteredClasses = (day: string) => {
     return schedule.classes.filter(entry => entry.day === day);
   };
@@ -293,12 +281,12 @@ export function ScheduleManager({ onUpdateAction }: ScheduleManagerProps = {}) {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Subject</TableHead>
-            <TableHead>Class Type</TableHead>
-            <TableHead>Start Time</TableHead>
-            <TableHead>End Time</TableHead>
-            <TableHead>Room</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
+            <TableHead className="w-[30%]">Subject</TableHead>
+            <TableHead className="w-[15%]">Class Type</TableHead>
+            <TableHead className="w-[12%]">Start Time</TableHead>
+            <TableHead className="w-[12%]">End Time</TableHead>
+            <TableHead className="w-[12%]">Bl-Room</TableHead>
+            <TableHead className="w-[19%] text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -451,7 +439,7 @@ export function ScheduleManager({ onUpdateAction }: ScheduleManagerProps = {}) {
           method: 'DELETE'
         });
         
-        onUpdateAction(emptySchedule);
+        onUpdateAction?.(emptySchedule);
         
         toast({
           title: "Schedule Cleared",
@@ -476,12 +464,20 @@ export function ScheduleManager({ onUpdateAction }: ScheduleManagerProps = {}) {
       <CardContent>
         <Tabs defaultValue="Monday" onValueChange={setCurrentDay}>
           <TabsList className="w-full grid grid-cols-7">
-            {days.map(day => (
-              <TabsTrigger key={day} value={day} className={offDays.includes(day) ? "bg-muted/20" : ""}>
-                {day.substring(0, 3)}
-                {offDays.includes(day) && <CalendarOff className="ml-1 h-3 w-3 text-muted-foreground" />}
-              </TabsTrigger>
-            ))}
+            {days.map(day => {
+              const classCount = getClassCount(day);
+              return (
+                <TabsTrigger key={day} value={day} className={offDays.includes(day) ? "bg-muted/20" : ""}>
+                  <div className="flex flex-col items-center">
+                    <span>{day.substring(0, 3)}</span>
+                    {classCount > 0 && !offDays.includes(day) && (
+                      <span className="text-xs text-muted-foreground">({classCount})</span>
+                    )}
+                    {offDays.includes(day) && <CalendarOff className="h-3 w-3 text-muted-foreground" />}
+                  </div>
+                </TabsTrigger>
+              );
+            })}
           </TabsList>
           
           {days.map(day => (
@@ -630,12 +626,12 @@ export function ScheduleManager({ onUpdateAction }: ScheduleManagerProps = {}) {
                           </div>
                           
                           <div className="space-y-2">
-                            <Label htmlFor="room">Room</Label>
+                            <Label htmlFor="room">Building-Room</Label>
                             <div className="flex items-center">
                               <Home className="mr-2 h-4 w-4 text-muted-foreground" />
                               <Input
                                 id="room"
-                                placeholder="Room Number"
+                                placeholder="e.g., 4-101"
                                 value={newEntry.room}
                                 onChange={(e) => handleInputChange("room", e.target.value)}
                               />
@@ -668,9 +664,12 @@ export function ScheduleManager({ onUpdateAction }: ScheduleManagerProps = {}) {
           </Button>
         </div>
         <div className="space-x-2">
-          <Button 
-            variant="default"
-            onClick={async () => {
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="default"
+                  onClick={async () => {
               try {
                 const subjectMap = new Map();
                 
@@ -754,6 +753,12 @@ export function ScheduleManager({ onUpdateAction }: ScheduleManagerProps = {}) {
           >
             <BookOpen className="mr-2 h-4 w-4" /> Upload to Subjects
           </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-xs">
+                <p>Automatically create or update subjects from your schedule. This will extract all unique subjects and their class counts.</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
       </CardFooter>
     </Card>

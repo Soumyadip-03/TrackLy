@@ -22,6 +22,11 @@ const SubjectSchema = new mongoose.Schema({
     required: [true, 'Please provide a semester number'],
     min: 1
   },
+  academicPeriodId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'AcademicPeriod',
+    required: true
+  },
   totalClasses: {
     type: Number,
     default: 0
@@ -60,7 +65,8 @@ const SubjectSchema = new mongoose.Schema({
   }
 });
 
-// Calculate attendance percentage
+SubjectSchema.index({ user: 1, academicPeriodId: 1 });
+
 SubjectSchema.methods.getAttendancePercentage = function() {
   if (this.totalClasses === 0) return 100;
   return (this.attendedClasses / this.totalClasses) * 100;

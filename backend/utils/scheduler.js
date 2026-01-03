@@ -1,14 +1,20 @@
 const schedule = require('node-schedule');
+const mongoose = require('mongoose');
 const User = require('../models/User');
 const Subject = require('../models/Subject');
 const Notification = require('../models/Notification');
 const notificationController = require('../controllers/notificationController');
 const { createNotification } = require('./notificationHelper');
-const { initializeUserDatabase } = require('./dbManager');
 
 // Todo Reminders - Daily at 9 AM
 const dailyTodoReminders = schedule.scheduleJob('0 9 * * *', async () => {
   try {
+    // Check if database is connected
+    if (mongoose.connection.readyState !== 1) {
+      console.log('Database not connected, skipping todo reminders');
+      return;
+    }
+    
     const users = await User.find({
       'notificationPreferences.todoReminders': true
     });
@@ -16,7 +22,7 @@ const dailyTodoReminders = schedule.scheduleJob('0 9 * * *', async () => {
     let totalGenerated = 0;
     
     for (const user of users) {
-      const { models } = initializeUserDatabase(user._id);
+      const Todo = require('../models/Todo');
       const todoReminderDays = parseInt(user.notificationPreferences?.todoReminderTime || '1');
       const priorityOnly = user.notificationPreferences?.priorityTodosOnly || false;
       
@@ -32,7 +38,7 @@ const dailyTodoReminders = schedule.scheduleJob('0 9 * * *', async () => {
         todoQuery.priority = 'high';
       }
       
-      const todos = await models.Todo.find(todoQuery);
+      const todos = await Todo.find(todoQuery);
       
       for (const todo of todos) {
         if (!todo.dueDate) continue;

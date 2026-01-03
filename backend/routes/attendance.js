@@ -4,6 +4,7 @@ const { body, validationResult } = require('express-validator');
 const Attendance = require('../models/Attendance');
 const Subject = require('../models/Subject');
 const User = require('../models/User');
+const AttendanceRecord = require('../models/AttendanceRecord');
 const { protect } = require('../middleware/auth');
 const { createNotification } = require('../utils/notificationHelper');
 
@@ -400,11 +401,11 @@ router.get('/range', protect, async (req, res) => {
 // @access  Private
 router.get('/records', protect, async (req, res) => {
   try {
-    const userInfo = await req.userDb.models.UserInfo.findOne({ mainUserId: req.user.id });
+    const records = await AttendanceRecord.find({ userId: req.user.id }).sort({ date: -1 });
     
     res.status(200).json({
       success: true,
-      data: userInfo?.attendanceRecords || []
+      data: records
     });
   } catch (err) {
     console.error(err.message);
@@ -420,21 +421,17 @@ router.get('/records', protect, async (req, res) => {
 // @access  Private
 router.post('/records', protect, async (req, res) => {
   try {
-    const { records } = req.body;
+    const { date, subjects } = req.body;
 
-    const userInfo = await req.userDb.models.UserInfo.findOneAndUpdate(
-      { mainUserId: req.user.id },
-      { 
-        $set: { 
-          attendanceRecords: records || []
-        }
-      },
-      { upsert: true, new: true }
-    );
+    const record = await AttendanceRecord.create({
+      userId: req.user.id,
+      date,
+      subjects
+    });
 
     res.status(200).json({
       success: true,
-      data: userInfo.attendanceRecords
+      data: record
     });
   } catch (err) {
     console.error(err.message);

@@ -2,15 +2,33 @@ const express = require('express');
 const router = express.Router();
 const { body, validationResult } = require('express-validator');
 const Subject = require('../models/Subject');
+const AcademicPeriod = require('../models/AcademicPeriod');
+const User = require('../models/User');
 const { protect } = require('../middleware/auth');
 
-// @desc    Get all subjects for current user
+// @desc    Get all subjects for current academic period
 // @route   GET /api/subject
 // @access  Private
 router.get('/', protect, async (req, res) => {
   try {
-    const subjects = await Subject.find({ user: req.user._id })
-      .sort({ semester: 1, name: 1 });
+    const user = await User.findById(req.user._id);
+    const academicPeriod = await AcademicPeriod.findOne({ 
+      userId: req.user._id, 
+      semester: user.currentSemester 
+    });
+
+    if (!academicPeriod) {
+      return res.status(200).json({
+        success: true,
+        count: 0,
+        data: []
+      });
+    }
+
+    const subjects = await Subject.find({ 
+      user: req.user._id,
+      academicPeriodId: academicPeriod._id
+    }).sort({ name: 1 });
 
     res.status(200).json({
       success: true,
@@ -77,7 +95,7 @@ router.get('/:id', protect, async (req, res) => {
   }
 });
 
-// @desc    Create new subject
+// @desc    Create new subject for current academic period
 // @route   POST /api/subject
 // @access  Private
 router.post(
@@ -95,14 +113,26 @@ router.post(
 
     try {
       const { name, code, classType, semester, schedule, classesPerWeek } = req.body;
+      const user = await User.findById(req.user._id);
+      const academicPeriod = await AcademicPeriod.findOne({ 
+        userId: req.user._id, 
+        semester: user.currentSemester 
+      });
 
-      // Create subject
+      if (!academicPeriod) {
+        return res.status(400).json({
+          success: false,
+          error: 'Please create an academic period first'
+        });
+      }
+
       const subject = await Subject.create({
         user: req.user._id,
+        academicPeriodId: academicPeriod._id,
         name,
         code,
         classType: classType || 'none',
-        semester: semester || 1,
+        semester: semester || user.currentSemester,
         schedule: schedule || [],
         classesPerWeek: classesPerWeek || 0
       });
@@ -174,6 +204,37 @@ router.delete('/:id', protect, async (req, res) => {
     }
 
     await subject.deleteOne();
+
+    res.status(200).json({
+      success: true,
+      data: {}
+    });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({
+      success: false,
+      error: 'Server error'
+    });
+  }
+});
+
+// @desc    Delete all subjects for current academic period
+// @route   DELETE /api/subject/clear/all
+// @access  Private
+router.delete('/clear/all', protect, async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    const academicPeriod = await AcademicPeriod.findOne({ 
+      userId: req.user._id, 
+      semester: user.currentSemester 
+    });
+
+    if (academicPeriod) {
+      await Subject.deleteMany({ 
+        user: req.user._id,
+        academicPeriodId: academicPeriod._id
+      });
+    }
 
     res.status(200).json({
       success: true,
