@@ -690,71 +690,67 @@ export function ScheduleManager({ onUpdateAction }: ScheduleManagerProps = {}) {
                 <Button 
                   variant="default"
                   onClick={async () => {
+              console.log('Upload to Subjects clicked');
+              console.log('Current schedule:', schedule);
+              
               try {
                 const subjectMap = new Map();
                 
                 schedule.classes.forEach(cls => {
+                  console.log('Processing class:', cls);
                   if (cls.classType === "break") return;
                   
-                  const subjectLower = cls.subject.toLowerCase();
+                  // Use combination of subject name and class type as key
+                  const subjectKey = `${cls.subject.toLowerCase()}_${cls.classType || 'none'}`;
                   
-                  if (!subjectMap.has(subjectLower)) {
-                    subjectMap.set(subjectLower, {
+                  if (!subjectMap.has(subjectKey)) {
+                    subjectMap.set(subjectKey, {
                       name: cls.subject.toUpperCase(),
-                      classTypes: new Map()
+                      classType: cls.classType || 'none',
+                      count: 0
                     });
                   }
                   
-                  const classType = cls.classType || "none";
-                  const subjectData = subjectMap.get(subjectLower);
-                  
-                  if (!subjectData.classTypes.has(classType)) {
-                    subjectData.classTypes.set(classType, 1);
-                  } else {
-                    subjectData.classTypes.set(classType, subjectData.classTypes.get(classType) + 1);
-                  }
+                  const subjectData = subjectMap.get(subjectKey);
+                  subjectData.count++;
                 });
                 
+                console.log('Subject map created:', subjectMap);
+                
                 const existingSubjects = await subjectService.getAll();
+                console.log('Existing subjects:', existingSubjects);
+                
                 const existingMap = new Map(
-                  existingSubjects.map(s => [s.name.toLowerCase(), s])
+                  existingSubjects.map(s => [`${s.name.toLowerCase()}_${s.classType}`, s])
                 );
                 
                 let created = 0;
                 let updated = 0;
                 
                 for (const [key, data] of subjectMap) {
-                  let totalClasses = 0;
-                  let primaryClassType = "none";
-                  let maxCount = 0;
-                  
-                  data.classTypes.forEach((count: number, type: string) => {
-                    totalClasses += count;
-                    if (count > maxCount) {
-                      maxCount = count;
-                      primaryClassType = type;
-                    }
-                  });
-                  
                   const existing = existingMap.get(key);
                   
                   if (existing) {
+                    console.log('Updating subject:', existing._id);
                     await subjectService.update(existing._id, {
-                      classesPerWeek: totalClasses,
-                      classType: existing.classType === "none" ? primaryClassType : existing.classType
+                      classesPerWeek: data.count
                     });
                     updated++;
                   } else {
-                    await subjectService.create({
+                    console.log('Creating new subject:', data.name, data.classType);
+                    const result = await subjectService.create({
                       name: data.name,
                       code: "",
-                      classType: primaryClassType,
-                      classesPerWeek: totalClasses,
+                      classType: data.classType,
+                      classesPerWeek: data.count,
                       semester: 1
                     });
+                    console.log('Create result:', result);
                     created++;
                   }
                 }
+                
+                console.log('Upload complete:', { created, updated });
                 
                 toast({
                   title: "Uploaded to Subjects",
@@ -763,6 +759,7 @@ export function ScheduleManager({ onUpdateAction }: ScheduleManagerProps = {}) {
                 
                 await loadSubjects();
               } catch (error) {
+                console.error('Upload error:', error);
                 toast({
                   title: "Error",
                   description: "Failed to upload subjects.",

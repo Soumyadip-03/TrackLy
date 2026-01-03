@@ -25,7 +25,8 @@ export class BaseService {
       if (!response.ok) return null;
       
       const data = await response.json();
-      return data.user?.id || null;
+      console.log('Auth me response:', data);
+      return data.data?._id || data.user?.id || null;
     } catch (error) {
       console.error('Error getting current user ID:', error);
       return null;

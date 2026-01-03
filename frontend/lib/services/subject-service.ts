@@ -57,6 +57,7 @@ export class SubjectService extends BaseService {
       const newLocalSubject = { ...subject, id: tempId };
       saveToLocalStorage('subjects', [...localSubjects, newLocalSubject]);
 
+      console.log('Creating subject:', subject);
       const response = await fetchWithAuth('/subject', {
         method: 'POST',
         body: JSON.stringify({
@@ -68,12 +69,16 @@ export class SubjectService extends BaseService {
         })
       });
 
+      console.log('Create response status:', response.status);
       if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Create subject error:', errorData);
         this.handleError(null, 'creating subject');
         return null;
       }
 
       const data = await response.json();
+      console.log('Create response data:', data);
       const createdSubject = data.data;
       
       const updatedSubjects = localSubjects
@@ -83,6 +88,7 @@ export class SubjectService extends BaseService {
       saveToLocalStorage('subjects', updatedSubjects);
       return createdSubject;
     } catch (error) {
+      console.error('Create subject exception:', error);
       this.handleError(error, 'creating subject');
       return null;
     }

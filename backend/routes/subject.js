@@ -14,21 +14,21 @@ router.get('/', protect, async (req, res) => {
     const user = await User.findById(req.user._id);
     const academicPeriod = await AcademicPeriod.findOne({ 
       userId: req.user._id, 
-      semester: user.currentSemester 
+      semester: String(user.currentSemester)
     });
 
-    if (!academicPeriod) {
-      return res.status(200).json({
-        success: true,
-        count: 0,
-        data: []
-      });
+    let subjects;
+    if (academicPeriod) {
+      subjects = await Subject.find({ 
+        user: req.user._id,
+        academicPeriodId: academicPeriod._id
+      }).sort({ name: 1 });
+    } else {
+      subjects = await Subject.find({ 
+        user: req.user._id,
+        semester: user.currentSemester
+      }).sort({ name: 1 });
     }
-
-    const subjects = await Subject.find({ 
-      user: req.user._id,
-      academicPeriodId: academicPeriod._id
-    }).sort({ name: 1 });
 
     res.status(200).json({
       success: true,
@@ -102,8 +102,7 @@ router.post(
   '/',
   protect,
   [
-    body('name', 'Name is required').not().isEmpty(),
-    body('code', 'Code is required').not().isEmpty()
+    body('name', 'Name is required').not().isEmpty()
   ],
   async (req, res) => {
     const errors = validationResult(req);
@@ -116,21 +115,14 @@ router.post(
       const user = await User.findById(req.user._id);
       const academicPeriod = await AcademicPeriod.findOne({ 
         userId: req.user._id, 
-        semester: user.currentSemester 
+        semester: String(user.currentSemester)
       });
-
-      if (!academicPeriod) {
-        return res.status(400).json({
-          success: false,
-          error: 'Please create an academic period first'
-        });
-      }
 
       const subject = await Subject.create({
         user: req.user._id,
-        academicPeriodId: academicPeriod._id,
+        academicPeriodId: academicPeriod?._id || null,
         name,
-        code,
+        code: code || '',
         classType: classType || 'none',
         semester: semester || user.currentSemester,
         schedule: schedule || [],

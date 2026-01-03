@@ -9,8 +9,9 @@ const SubjectSchema = new mongoose.Schema({
   },
   code: {
     type: String,
-    required: [true, 'Please provide a subject code'],
-    trim: true
+    required: false,
+    trim: true,
+    default: ''
   },
   classType: {
     type: String,
@@ -25,7 +26,7 @@ const SubjectSchema = new mongoose.Schema({
   academicPeriodId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'AcademicPeriod',
-    required: true
+    required: false
   },
   totalClasses: {
     type: Number,
