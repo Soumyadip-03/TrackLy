@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useAuth } from '@/lib/auth-context'
-import { fetchWithAuth } from '@/lib/api'
+import { fetchWithAuth, buildApiUrl } from '@/lib/api'
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
 import { Save, Camera } from "lucide-react"
@@ -21,11 +21,11 @@ interface ProfileData {
   profilePicture?: string;
 }
 
-interface ProfileFormProps {
+interface PersonalInfoFormProps {
   onUpdateAction?: (data: ProfileData) => void;
 }
 
-export function SettingsProfileForm({ onUpdateAction }: ProfileFormProps) {
+export function PersonalInfoForm({ onUpdateAction }: PersonalInfoFormProps = {}) {
   const { user } = useAuth()
   const fileInputRef = useRef<HTMLInputElement>(null)
   
@@ -114,7 +114,8 @@ export function SettingsProfileForm({ onUpdateAction }: ProfileFormProps) {
   const handleRemoveProfilePicture = async () => {
     try {
       const token = localStorage.getItem('trackly_token');
-      const response = await fetch('http://localhost:5000/api/user/profile-picture', {
+      const apiUrl = buildApiUrl('/user/profile-picture');
+      const response = await fetch(apiUrl, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -153,7 +154,8 @@ export function SettingsProfileForm({ onUpdateAction }: ProfileFormProps) {
         formData.append('profilePicture', selectedFile);
         
         const token = localStorage.getItem('trackly_token');
-        const response = await fetch('http://localhost:5000/api/user/profile-picture', {
+        const apiUrl = buildApiUrl('/user/profile-picture');
+        const response = await fetch(apiUrl, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`
@@ -223,7 +225,7 @@ export function SettingsProfileForm({ onUpdateAction }: ProfileFormProps) {
                   <AvatarImage src={previewUrl} />
                 ) : profileData.profilePicture ? (
                   <AvatarImage 
-                    src={`http://localhost:5000/${profileData.profilePicture}`} 
+                    src={buildApiUrl(profileData.profilePicture)} 
                     onError={(e) => {
                       e.currentTarget.style.display = 'none'
                     }}

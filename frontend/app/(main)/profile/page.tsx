@@ -1,119 +1,14 @@
 "use client"
 
-import { useState, useCallback, useEffect } from "react"
-import { PageHeader } from "@/components/page-header"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Button } from "@/components/ui/button"
-import { SettingsProfileForm } from "@/components/profile/settings-profile-form"
-import { SettingsSubjectList } from "@/components/profile/settings-subject-list"
-import { SettingsScheduleUploader } from "@/components/profile/settings-schedule-uploader"
+import { PersonalInfoForm } from "@/components/profile/personal-info-form"
+import { SubjectManager } from "@/components/profile/subject-manager"
+import { ScheduleManager } from "@/components/profile/schedule-manager"
 import { AcademicPeriodSelector } from "@/components/attendance/academic-period-selector"
 import { User, Book, Calendar, GraduationCap } from "lucide-react"
 import { ClientOnly } from "@/components/client-only"
 
-// API URL - moved inside component to prevent hydration mismatch
-const BASE_API_URL = 'http://localhost:5000/api';
-
-// Define types for our form state
-interface ProfileData {
-  name: string;
-  email: string;
-  studentId: string;
-  currentSemester: string;
-}
-
-interface SubjectData {
-  id: string;
-  name: string;
-  code: string;
-  classesPerWeek: number;
-}
-
-interface ClassEntry {
-  day: string;
-  name: string;
-  time: string;
-  room: string;
-}
-
-interface ScheduleData {
-  fileName?: string;
-  fileSize?: number;
-  uploadDate?: string;
-  processed?: boolean;
-  classes: ClassEntry[];
-  pdfSchedule?: {
-    name: string;
-    size: number;
-    uploadDate: string;
-    dataUrl?: string;
-    processed?: boolean;
-    parsedSchedule?: {
-      days: string[];
-      timeSlots: string[];
-      schedule: {[day: string]: {[timeSlot: string]: {
-        subject: string;
-        classType?: string;
-        room?: string;
-      }}};
-    }
-  };
-  [key: string]: any;
-}
-
-interface FormState {
-  profile: ProfileData;
-  subjects: SubjectData[];
-  schedule: ScheduleData;
-}
-
 export default function ProfilePage() {
-  const [apiUrl, setApiUrl] = useState(BASE_API_URL)
-  
-  // State for all the settings data with proper typing
-  const [formState, setFormState] = useState<FormState>({
-    profile: {
-      name: "",
-      email: "",
-      studentId: "",
-      currentSemester: ""
-    },
-    subjects: [],
-    schedule: {
-      classes: []
-    }
-  })
-
-  // Set API URL based on hostname after component mounts to avoid hydration mismatch
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setApiUrl(window.location.hostname === 'localhost' 
-        ? 'http://localhost:5000/api' 
-        : 'https://trackly-backend.onrender.com/api')
-    }
-  }, [])
-  
-  // Functions to update state from child components - memoized to prevent infinite loops
-  const updateProfile = useCallback((data: ProfileData) => {
-    setFormState(prevState => ({
-      ...prevState,
-      profile: data
-    }))
-  }, []);
-  
-  const updateSubjects = useCallback((data: SubjectData[]) => {
-    setFormState(prevState => ({
-      ...prevState,
-      subjects: data
-    }))
-  }, []);
-  
-  const updateSchedule = useCallback((data: ScheduleData) => {
-    setFormState(prevState => ({
-      ...prevState,
-      schedule: data
-    }))
-  }, []);
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">
@@ -148,16 +43,16 @@ export default function ProfilePage() {
             <div className="flex-1 overflow-y-auto mt-6">
               <div className="container pb-6">
                 <TabsContent value="personal" className="space-y-4 mt-0">
-                  <SettingsProfileForm onUpdateAction={updateProfile} />
+                  <PersonalInfoForm />
                 </TabsContent>
                 <TabsContent value="academic" className="space-y-4 mt-0">
                   <AcademicPeriodSelector />
                 </TabsContent>
                 <TabsContent value="subjects" className="space-y-4 mt-0">
-                  <SettingsSubjectList onUpdateAction={updateSubjects} />
+                  <SubjectManager />
                 </TabsContent>
                 <TabsContent value="schedule" className="space-y-4 mt-0">
-                  <SettingsScheduleUploader onUpdateAction={updateSchedule} />
+                  <ScheduleManager />
                 </TabsContent>
               </div>
             </div>

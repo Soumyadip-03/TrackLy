@@ -5,7 +5,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { getFromLocalStorage } from "@/lib/storage-utils"
 import { CalendarIcon, GraduationCap, Clock, CalendarDays } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
@@ -14,7 +13,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { HolidayManager } from "./holiday-manager"
 import { HolidayList } from "./holiday-list"
-import { buildApiUrl, fetchWithAuth } from "@/lib/api"
+import { fetchWithAuth } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
 
 export function AcademicPeriodSelector() {
@@ -35,18 +34,12 @@ export function AcademicPeriodSelector() {
   
   const loadAcademicPeriod = async () => {
     try {
-      // Get semester from user context
       const currentSem = user?.currentSemester || 1;
-      console.log('User semester from context:', currentSem);
       
       setUserBaseSemester(currentSem);
       setCurrentSemester(currentSem.toString());
-      console.log('Set currentSemester state to:', currentSem.toString());
       
-      // Fetch academic period from database
       const response = await fetchWithAuth(`/academic-period/${currentSem}`);
-      
-      console.log('Academic period response status:', response.status);
       
       if (response.ok) {
         const data = await response.json();
@@ -54,7 +47,6 @@ export function AcademicPeriodSelector() {
           const start = new Date(data.data.startDate);
           const end = new Date(data.data.endDate);
           
-          // Check if dates are same (placeholder from registration)
           const isSameDate = start.toDateString() === end.toDateString();
           
           if (!isSameDate) {
@@ -62,7 +54,6 @@ export function AcademicPeriodSelector() {
             setEndDate(end);
             setIsPeriodSaved(true);
           } else {
-            // Placeholder dates, treat as not set
             setStartDate(undefined);
             setEndDate(undefined);
             setIsPeriodSaved(false);
@@ -96,7 +87,6 @@ export function AcademicPeriodSelector() {
     }
     
     try {
-      // Save academic period
       const response = await fetchWithAuth('/academic-period', {
         method: 'POST',
         body: JSON.stringify({
@@ -111,7 +101,6 @@ export function AcademicPeriodSelector() {
         throw new Error(errorData.error || 'Failed to save academic period');
       }
       
-      // Update user's current semester
       const userResponse = await fetchWithAuth('/user/profile', {
         method: 'PUT',
         body: JSON.stringify({
@@ -123,7 +112,6 @@ export function AcademicPeriodSelector() {
         console.error('Failed to update user semester');
       }
       
-      // Update user in localStorage
       const storedUser = localStorage.getItem('trackly_user');
       if (storedUser) {
         const updatedUser = { ...JSON.parse(storedUser), currentSemester: parseInt(currentSemester) };
@@ -145,7 +133,6 @@ export function AcademicPeriodSelector() {
       });
       window.dispatchEvent(event);
       
-      // Trigger re-render by dispatching custom event
       window.dispatchEvent(new Event('userUpdated'));
     } catch (error) {
       console.error("Error saving academic period:", error);

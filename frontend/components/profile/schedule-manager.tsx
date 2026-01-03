@@ -46,11 +46,11 @@ interface ScheduleData {
   classes: ClassEntry[];
 }
 
-interface ScheduleUploaderProps {
-  onUpdateAction: (data: ScheduleData) => void;
+interface ScheduleManagerProps {
+  onUpdateAction?: (data: ScheduleData) => void;
 }
 
-export function SettingsScheduleUploader({ onUpdateAction }: ScheduleUploaderProps) {
+export function ScheduleManager({ onUpdateAction }: ScheduleManagerProps = {}) {
   const [schedule, setSchedule] = useState<ScheduleData>({ classes: [] });
   const [subjects, setSubjects] = useState<{ name: string, classType: string }[]>([]);
   const [offDays, setOffDays] = useState<string[]>([]);

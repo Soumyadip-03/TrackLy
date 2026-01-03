@@ -22,11 +22,11 @@ interface SubjectData {
   isEditing?: boolean
 }
 
-interface SubjectListProps {
-  onUpdateAction: (data: SubjectData[]) => void;
+interface SubjectManagerProps {
+  onUpdateAction?: (data: SubjectData[]) => void;
 }
 
-export function SettingsSubjectList({ onUpdateAction }: SubjectListProps) {
+export function SubjectManager({ onUpdateAction }: SubjectManagerProps = {}) {
   const [subjects, setSubjects] = useState<SubjectData[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isAddingNew, setIsAddingNew] = useState(false)
