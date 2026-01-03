@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const passport = require('passport');
 const User = require('../models/User');
+const AcademicPeriod = require('../models/AcademicPeriod');
 const Notification = require('../models/Notification');
 const { protect } = require('../middleware/auth');
 const { setupUserDatabase, initializeUserDatabase } = require('../utils/dbManager');
@@ -147,6 +148,18 @@ router.post(
 
       // Save user with history
       await user.save();
+
+      // Create default academic period entry (without dates)
+      try {
+        await AcademicPeriod.create({
+          userId: user._id,
+          semester: currentSemester.toString(),
+          startDate: new Date(), // Placeholder - user will set actual dates
+          endDate: new Date() // Placeholder - user will set actual dates
+        });
+      } catch (academicErr) {
+        console.error('Error creating default academic period:', academicErr);
+      }
 
       // Create welcome notification
       await Notification.create({

@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button"
 import { SettingsProfileForm } from "@/components/profile/settings-profile-form"
 import { SettingsSubjectList } from "@/components/profile/settings-subject-list"
 import { SettingsScheduleUploader } from "@/components/profile/settings-schedule-uploader"
-import { User, Book, Calendar } from "lucide-react"
+import { AcademicPeriodSelector } from "@/components/attendance/academic-period-selector"
+import { User, Book, Calendar, GraduationCap } from "lucide-react"
 import { ClientOnly } from "@/components/client-only"
 
 // API URL - moved inside component to prevent hydration mismatch
@@ -116,10 +117,7 @@ export default function ProfilePage() {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">
-      <div className="container py-6">
-        <PageHeader title="Profile & Schedule" description="Manage your profile and schedule settings" />
-      </div>
-
+      <div className="container py-6"></div>
       <div className="flex-1 overflow-hidden">
         <ClientOnly fallback={
           <div className="flex justify-center items-center py-8">
@@ -128,10 +126,14 @@ export default function ProfilePage() {
         }>
           <Tabs defaultValue="personal" className="h-full flex flex-col">
             <div className="container">
-              <TabsList className="w-full max-w-md mx-auto grid grid-cols-3">
+              <TabsList className="w-full max-w-3xl mx-auto grid grid-cols-4">
                 <TabsTrigger value="personal" className="flex items-center gap-2">
                   <User className="h-4 w-4" />
                   <span>Personal Info</span>
+                </TabsTrigger>
+                <TabsTrigger value="academic" className="flex items-center gap-2">
+                  <GraduationCap className="h-4 w-4" />
+                  <span>Academic Period</span>
                 </TabsTrigger>
                 <TabsTrigger value="subjects" className="flex items-center gap-2">
                   <Book className="h-4 w-4" />
@@ -144,9 +146,12 @@ export default function ProfilePage() {
               </TabsList>
             </div>
             <div className="flex-1 overflow-y-auto mt-6">
-              <div className="container">
+              <div className="container pb-6">
                 <TabsContent value="personal" className="space-y-4 mt-0">
                   <SettingsProfileForm onUpdateAction={updateProfile} />
+                </TabsContent>
+                <TabsContent value="academic" className="space-y-4 mt-0">
+                  <AcademicPeriodSelector />
                 </TabsContent>
                 <TabsContent value="subjects" className="space-y-4 mt-0">
                   <SettingsSubjectList onUpdateAction={updateSubjects} />

@@ -5,66 +5,78 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { getFromLocalStorage, saveToLocalStorage } from "@/lib/storage-utils"
+import { getFromLocalStorage } from "@/lib/storage-utils"
 import { CalendarIcon, GraduationCap, Clock, CalendarDays } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { format, isValid } from "date-fns"
+import { format } from "date-fns"
 import { toast } from "@/components/ui/use-toast"
 import { Label } from "@/components/ui/label"
-import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { HolidayManager } from "./holiday-manager"
 import { HolidayList } from "./holiday-list"
-
-interface SemesterPeriod {
-  semester: string;
-  startDate: string | null;
-  endDate: string | null;
-}
+import { buildApiUrl, fetchWithAuth } from "@/lib/api"
+import { useAuth } from "@/lib/auth-context"
 
 export function AcademicPeriodSelector() {
+  const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [currentSemester, setCurrentSemester] = useState<string>("1");
-  const [semesterName, setSemesterName] = useState<string>("Semester 1");
-  const [semesterPeriods, setSemesterPeriods] = useState<SemesterPeriod[]>([]);
+  const [userBaseSemester, setUserBaseSemester] = useState<number>(1);
   const [isPeriodSaved, setIsPeriodSaved] = useState<boolean>(false);
   const [refreshKey, setRefreshKey] = useState(0);
   
   useEffect(() => {
-    const loadData = () => {
-      const userProfile = getFromLocalStorage<{currentSemester: string}>('user_profile', {currentSemester: '1'});
-      const currentSem = userProfile.currentSemester || '1';
-      setCurrentSemester(currentSem);
-      setSemesterName(`Semester ${currentSem}`);
-      
-      const savedPeriods = getFromLocalStorage<SemesterPeriod[]>('semesterPeriods', []);
-      setSemesterPeriods(savedPeriods);
-      
-      const currentPeriod = savedPeriods.find(p => p.semester === currentSem);
-      
-      if (currentPeriod) {
-        if (currentPeriod.startDate) setStartDate(new Date(currentPeriod.startDate));
-        if (currentPeriod.endDate) setEndDate(new Date(currentPeriod.endDate));
-        setIsPeriodSaved(true);
-      } else {
-        const savedStartDate = getFromLocalStorage<string>('collegeStartDate', '');
-        if (savedStartDate) setStartDate(new Date(savedStartDate));
-        
-        const savedEndDate = getFromLocalStorage<string>('collegeEndDate', '');
-        if (savedEndDate) setEndDate(new Date(savedEndDate));
-        
-        setIsPeriodSaved(savedStartDate && savedEndDate ? true : false);
-      }
-      
-      setIsLoading(false);
-    };
-    
-    loadData();
-  }, []);
+    if (user) {
+      loadAcademicPeriod();
+    }
+  }, [user]);
   
-  const handleSavePeriod = () => {
+  const loadAcademicPeriod = async () => {
+    try {
+      // Get semester from user context
+      const currentSem = user?.currentSemester || 1;
+      console.log('User semester from context:', currentSem);
+      
+      setUserBaseSemester(currentSem);
+      setCurrentSemester(currentSem.toString());
+      console.log('Set currentSemester state to:', currentSem.toString());
+      
+      // Fetch academic period from database
+      const response = await fetchWithAuth(`/academic-period/${currentSem}`);
+      
+      console.log('Academic period response status:', response.status);
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.data) {
+          const start = new Date(data.data.startDate);
+          const end = new Date(data.data.endDate);
+          
+          // Check if dates are same (placeholder from registration)
+          const isSameDate = start.toDateString() === end.toDateString();
+          
+          if (!isSameDate) {
+            setStartDate(start);
+            setEndDate(end);
+            setIsPeriodSaved(true);
+          } else {
+            // Placeholder dates, treat as not set
+            setStartDate(undefined);
+            setEndDate(undefined);
+            setIsPeriodSaved(false);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error loading academic period:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  const handleSavePeriod = async () => {
     if (!startDate || !endDate) {
       toast({
         title: "Error",
@@ -84,77 +96,87 @@ export function AcademicPeriodSelector() {
     }
     
     try {
-      const updatedPeriods = [...semesterPeriods];
-      const existingIndex = updatedPeriods.findIndex(p => p.semester === currentSemester);
+      // Save academic period
+      const response = await fetchWithAuth('/academic-period', {
+        method: 'POST',
+        body: JSON.stringify({
+          semester: currentSemester,
+          startDate: startDate.toISOString(),
+          endDate: endDate.toISOString()
+        })
+      });
       
-      const periodData: SemesterPeriod = {
-        semester: currentSemester,
-        startDate: startDate?.toISOString() || null,
-        endDate: endDate?.toISOString() || null,
-      };
-      
-      if (existingIndex >= 0) {
-        updatedPeriods[existingIndex] = periodData;
-      } else {
-        updatedPeriods.push(periodData);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to save academic period');
       }
       
-      saveToLocalStorage('semesterPeriods', updatedPeriods);
+      // Update user's current semester
+      const userResponse = await fetchWithAuth('/user/profile', {
+        method: 'PUT',
+        body: JSON.stringify({
+          currentSemester: parseInt(currentSemester)
+        })
+      });
       
-      if (startDate) saveToLocalStorage('collegeStartDate', startDate.toISOString());
-      if (endDate) saveToLocalStorage('collegeEndDate', endDate.toISOString());
+      if (!userResponse.ok) {
+        console.error('Failed to update user semester');
+      }
       
-      setSemesterPeriods(updatedPeriods);
       setIsPeriodSaved(true);
-      
       toast({
         title: "Success",
-        description: `Academic period for ${semesterName} saved successfully`,
+        description: `Academic period for Semester ${currentSemester} saved successfully`,
       });
       
       const event = new CustomEvent('academicPeriodUpdated', { 
         detail: { 
           semester: currentSemester, 
-          startDate: startDate?.toISOString(), 
-          endDate: endDate?.toISOString() 
+          startDate: startDate.toISOString(), 
+          endDate: endDate.toISOString() 
         } 
       });
       window.dispatchEvent(event);
-      
     } catch (error) {
-      console.error("Error saving semester period:", error);
+      console.error("Error saving academic period:", error);
       toast({
         title: "Error",
-        description: "Failed to save academic period",
+        description: error instanceof Error ? error.message : "Failed to save academic period",
         variant: "destructive",
       });
     }
   };
   
-  const handleSemesterChange = (value: string) => {
+  const handleSemesterChange = async (value: string) => {
     setCurrentSemester(value);
-    setSemesterName(`Semester ${value}`);
+    setIsLoading(true);
     
-    const selectedPeriod = semesterPeriods.find(p => p.semester === value);
-    
-    if (selectedPeriod) {
-      if (selectedPeriod.startDate) {
-        setStartDate(new Date(selectedPeriod.startDate));
+    try {
+      const response = await fetchWithAuth(`/academic-period/${value}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.data) {
+          setStartDate(new Date(data.data.startDate));
+          setEndDate(new Date(data.data.endDate));
+          setIsPeriodSaved(true);
+        } else {
+          setStartDate(undefined);
+          setEndDate(undefined);
+          setIsPeriodSaved(false);
+        }
       } else {
         setStartDate(undefined);
-      }
-      
-      if (selectedPeriod.endDate) {
-        setEndDate(new Date(selectedPeriod.endDate));
-      } else {
         setEndDate(undefined);
+        setIsPeriodSaved(false);
       }
-      
-      setIsPeriodSaved(selectedPeriod.startDate && selectedPeriod.endDate ? true : false);
-    } else {
+    } catch (error) {
+      console.error('Error loading semester period:', error);
       setStartDate(undefined);
       setEndDate(undefined);
       setIsPeriodSaved(false);
+    } finally {
+      setIsLoading(false);
     }
   };
   
@@ -204,14 +226,13 @@ export function AcademicPeriodSelector() {
                   <SelectValue placeholder="Select Semester" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="1">Semester 1</SelectItem>
-                  <SelectItem value="2">Semester 2</SelectItem>
-                  <SelectItem value="3">Semester 3</SelectItem>
-                  <SelectItem value="4">Semester 4</SelectItem>
-                  <SelectItem value="5">Semester 5</SelectItem>
-                  <SelectItem value="6">Semester 6</SelectItem>
-                  <SelectItem value="7">Semester 7</SelectItem>
-                  <SelectItem value="8">Semester 8</SelectItem>
+                  {[1, 2, 3, 4, 5, 6, 7, 8]
+                    .filter(sem => sem >= userBaseSemester)
+                    .map(sem => (
+                      <SelectItem key={sem} value={sem.toString()}>
+                        Semester {sem}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>

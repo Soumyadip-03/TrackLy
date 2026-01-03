@@ -5,7 +5,6 @@ import { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useAuth } from '@/lib/auth-context'
 import { fetchWithAuth } from '@/lib/api'
@@ -41,11 +40,9 @@ export function SettingsProfileForm({ onUpdateAction }: ProfileFormProps) {
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
-  const [originalSemester, setOriginalSemester] = useState(1)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string>("")
 
-  // Load user profile data from backend
   useEffect(() => {
     const loadProfile = async () => {
       if (!user) {
@@ -67,13 +64,9 @@ export function SettingsProfileForm({ onUpdateAction }: ProfileFormProps) {
             profilePicture: data.profilePicture || "",
           });
           
-          setOriginalSemester(data.currentSemester || 1);
-          
           if (data.role === 'admin') {
             setIsAdmin(true);
           }
-        } else {
-          console.error('Failed to load profile');
         }
       } catch (error) {
         console.error('Error loading profile:', error);
@@ -83,16 +76,23 @@ export function SettingsProfileForm({ onUpdateAction }: ProfileFormProps) {
     };
     
     loadProfile();
+    
+    const handleAcademicPeriodUpdate = (event: any) => {
+      if (event.detail?.semester) {
+        setProfileData(prev => ({ ...prev, currentSemester: parseInt(event.detail.semester) }));
+      }
+    };
+    
+    window.addEventListener('academicPeriodUpdated', handleAcademicPeriodUpdate);
+    
+    return () => {
+      window.removeEventListener('academicPeriodUpdated', handleAcademicPeriodUpdate);
+    };
   }, [user]);
 
-  // Check if semester has changed
   useEffect(() => {
-    setHasChanges(profileData.currentSemester !== originalSemester || selectedFile !== null);
-  }, [profileData.currentSemester, originalSemester, selectedFile]);
-
-  const handleSemesterChange = (value: string) => {
-    setProfileData(prev => ({ ...prev, currentSemester: parseInt(value) }));
-  };
+    setHasChanges(selectedFile !== null);
+  }, [selectedFile]);
 
   const handleAvatarClick = () => {
     fileInputRef.current?.click();
@@ -103,7 +103,6 @@ export function SettingsProfileForm({ onUpdateAction }: ProfileFormProps) {
       const file = e.target.files[0];
       setSelectedFile(file);
       
-      // Create preview URL
       const reader = new FileReader();
       reader.onloadend = () => {
         setPreviewUrl(reader.result as string);
@@ -127,7 +126,6 @@ export function SettingsProfileForm({ onUpdateAction }: ProfileFormProps) {
         setPreviewUrl("");
         setSelectedFile(null);
         
-        // Update localStorage
         const storedUser = localStorage.getItem('trackly_user');
         if (storedUser) {
           const updatedUser = { ...JSON.parse(storedUser) };
@@ -150,7 +148,6 @@ export function SettingsProfileForm({ onUpdateAction }: ProfileFormProps) {
     setIsSaving(true);
     
     try {
-      // Upload profile picture if selected
       if (selectedFile) {
         const formData = new FormData();
         formData.append('profilePicture', selectedFile);
@@ -170,42 +167,23 @@ export function SettingsProfileForm({ onUpdateAction }: ProfileFormProps) {
 
         const result = await response.json();
         const newProfilePicture = result.profilePicture;
-        
-        // Ensure the path starts with /
         const formattedPath = newProfilePicture.startsWith('/') ? newProfilePicture : `/${newProfilePicture}`;
         
         setProfileData(prev => ({ ...prev, profilePicture: formattedPath }));
         setSelectedFile(null);
         setPreviewUrl("");
         
-        // Update user in localStorage
         const storedUser = localStorage.getItem('trackly_user');
         if (storedUser) {
           const updatedUser = { ...JSON.parse(storedUser), profilePicture: formattedPath };
           localStorage.setItem('trackly_user', JSON.stringify(updatedUser));
-          console.log('Updated user in localStorage:', updatedUser);
         }
         
-        // Dispatch event to notify sidebar
         window.dispatchEvent(new Event('profilePictureUpdated'));
-        console.log('Profile picture updated event dispatched');
-      }
-
-      // Update semester
-      const response = await fetchWithAuth('/user/profile', {
-        method: 'PUT',
-        body: JSON.stringify({
-          currentSemester: profileData.currentSemester,
-        })
-      });
-
-      if (response.ok) {
-        setOriginalSemester(profileData.currentSemester);
+        
         setHasChanges(false);
-        toast.success('Profile updated successfully');
+        toast.success('Profile picture updated successfully');
         onUpdateAction?.(profileData);
-      } else {
-        toast.error('Failed to save changes');
       }
     } catch (error) {
       console.error("Error saving profile:", error);
@@ -234,11 +212,10 @@ export function SettingsProfileForm({ onUpdateAction }: ProfileFormProps) {
             </CardTitle>
           </div>
           <CardDescription className="text-sm">
-            Your signup credentials are fixed. You can change your profile picture and semester.
+            Your signup credentials are fixed. You can change your profile picture.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Profile Picture Section */}
           <div className="flex items-center gap-6 pb-4 border-b">
             <div className="relative group cursor-pointer" onClick={handleAvatarClick}>
               <Avatar className="h-24 w-24">
@@ -281,7 +258,6 @@ export function SettingsProfileForm({ onUpdateAction }: ProfileFormProps) {
             className="hidden"
           />
 
-          {/* Compact Fields */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="studentId" className="text-sm">Student ID</Label>
@@ -295,21 +271,12 @@ export function SettingsProfileForm({ onUpdateAction }: ProfileFormProps) {
 
             <div className="space-y-2">
               <Label htmlFor="currentSemester" className="text-sm">Current Semester</Label>
-              <Select 
-                value={profileData.currentSemester.toString()} 
-                onValueChange={handleSemesterChange}
-              >
-                <SelectTrigger id="currentSemester" className="h-9">
-                  <SelectValue placeholder="Select semester" />
-                </SelectTrigger>
-                <SelectContent>
-                  {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => (
-                    <SelectItem key={sem} value={sem.toString()}>
-                      Semester {sem}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Input 
+                id="currentSemester" 
+                value={`Semester ${profileData.currentSemester}`} 
+                disabled 
+                className="bg-muted/50 cursor-not-allowed h-9"
+              />
             </div>
           </div>
         </CardContent>
