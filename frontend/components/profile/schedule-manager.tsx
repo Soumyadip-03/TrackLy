@@ -742,8 +742,7 @@ export function ScheduleManager({ onUpdateAction }: ScheduleManagerProps = {}) {
                       name: data.name,
                       code: "",
                       classType: data.classType,
-                      classesPerWeek: data.count,
-                      semester: 1
+                      classesPerWeek: data.count
                     });
                     console.log('Create result:', result);
                     created++;

@@ -257,6 +257,7 @@ router.post(
       const loginMessage = `New login detected from ${deviceInfo.browser} on ${deviceInfo.os} at ${loginTime.toLocaleString()}`;
       
       // Save login history
+      if (!user.loginHistory) user.loginHistory = [];
       user.loginHistory.push({
         timestamp: loginTime,
         ipAddress: ipAddress,
@@ -264,6 +265,7 @@ router.post(
         deviceInfo: deviceInfo
       });
       
+      if (!user.accountActivity) user.accountActivity = [];
       user.accountActivity.push({
         action: 'login',
         timestamp: loginTime,
@@ -310,6 +312,7 @@ router.post(
             );
             
             if (emailResult.success) {
+              if (!user.emailHistory) user.emailHistory = [];
               user.emailHistory.push({
                 emailType: 'security',
                 subject: securityNotification.title,
@@ -399,6 +402,82 @@ router.get('/logout', protect, async (req, res) => {
     success: true,
     data: {}
   });
+});
+
+// @desc    Forgot password
+// @route   POST /api/auth/forgot-password
+// @access  Public
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'No user found with that email'
+      });
+    }
+
+    // Generate reset token (valid for 1 hour)
+    const resetToken = jwt.sign(
+      { id: user._id },
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
+
+    await emailService.sendEmail(
+      email,
+      'Password Reset Request',
+      `You requested a password reset. Click this link to reset your password: <a href="${resetUrl}">${resetUrl}</a><br><br>This link expires in 1 hour.`
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Password reset email sent'
+    });
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to send reset email'
+    });
+  }
+});
+
+// @desc    Reset password
+// @route   POST /api/auth/reset-password
+// @access  Public
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { token, password } = req.body;
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'Invalid token'
+      });
+    }
+
+    user.password = password;
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Password reset successful'
+    });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(400).json({
+      success: false,
+      error: 'Invalid or expired token'
+    });
+  }
 });
 
 // Helper function to get token from model, create cookie and send response

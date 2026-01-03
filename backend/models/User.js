@@ -35,27 +35,9 @@ const UserSchema = new mongoose.Schema({
     required: [true, 'Please provide current semester number'],
     min: 1
   },
-  googleId: {
-    type: String,
-    default: null
-  },
   profilePicture: {
     type: String,
     default: null
-  },
-  pdfSchedule: {
-    name: String,
-    originalName: String,
-    path: String,
-    size: Number,
-    uploadDate: {
-      type: Date,
-      default: Date.now
-    },
-    processed: {
-      type: Boolean,
-      default: false
-    }
   },
   points: {
     type: Number,
@@ -66,75 +48,6 @@ const UserSchema = new mongoose.Schema({
     enum: ['user', 'admin'],
     default: 'user'
   },
-  notificationPreferences: {
-    emailNotifications: {
-      enabled: {
-        type: Boolean,
-        default: false
-      },
-      frequency: {
-        type: String,
-        enum: ['instant', 'daily', 'weekly', 'never'],
-        default: 'daily'
-      },
-      lastDigestSent: {
-        type: Date,
-        default: null
-      },
-      mutedTypes: {
-        type: [String],
-        default: []
-      }
-    },
-    attendanceReminders: {
-      type: Boolean,
-      default: true
-    },
-    attendanceThreshold: {
-      type: String,
-      default: '75'
-    },
-    attendanceReminderFrequency: {
-      type: String,
-      enum: ['daily', 'weekly', 'monthly', 'never'],
-      default: 'never'
-    },
-    todoReminders: {
-      type: Boolean,
-      default: true
-    },
-    todoReminderTime: {
-      type: String,
-      default: '1'
-    },
-    priorityTodosOnly: {
-      type: Boolean,
-      default: false
-    },
-    calendarReminders: {
-      type: Boolean,
-      default: true
-    },
-    calendarReminderTime: {
-      type: String,
-      default: '1'
-    }
-  },
-  loginHistory: [{
-    timestamp: Date,
-    ipAddress: String,
-    userAgent: String,
-    deviceInfo: {
-      os: String,
-      browser: String
-    }
-  }],
-  emailHistory: [{
-    emailType: String,
-    subject: String,
-    sentAt: Date,
-    status: String
-  }],
   accountActivity: [{
     action: String,
     timestamp: Date,
@@ -144,18 +57,6 @@ const UserSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   },
-  holidays: [{
-    id: String,
-    day: Number,
-    month: Number,
-    year: Number,
-    reason: String,
-    semester: String,
-    createdAt: {
-      type: Date,
-      default: Date.now
-    }
-  }],
   createdAt: {
     type: Date,
     default: Date.now
