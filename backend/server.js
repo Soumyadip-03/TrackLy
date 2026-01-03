@@ -6,7 +6,7 @@ const path = require('path');
 const fs = require('fs');
 
 // Load environment variables
-dotenv.config({ path: './config/config.env' });
+dotenv.config();
 
 // Import database manager
 const dbManager = require('./utils/dbManager');

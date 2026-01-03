@@ -72,8 +72,18 @@ export function ScheduleManager({ onUpdateAction }: ScheduleManagerProps = {}) {
       const response = await fetchWithAuth('/schedule');
       if (response.ok) {
         const data = await response.json();
-        setSchedule(data.data || { classes: [] });
-        setOffDays(data.data?.offDays || []);
+        const scheduleData = data.data || { classes: [] };
+        
+        // Ensure each class has an id field
+        if (scheduleData.classes) {
+          scheduleData.classes = scheduleData.classes.map((cls: any) => ({
+            ...cls,
+            id: cls.id || cls._id || Math.random().toString(36).substring(2, 9)
+          }));
+        }
+        
+        setSchedule(scheduleData);
+        setOffDays(scheduleData?.offDays || []);
       }
     } catch (error) {
       console.error('Failed to load schedule:', error);
@@ -82,11 +92,21 @@ export function ScheduleManager({ onUpdateAction }: ScheduleManagerProps = {}) {
 
   const saveScheduleToDB = async (scheduleData: ScheduleData, offDaysData?: string[]) => {
     try {
-      await fetchWithAuth('/schedule', {
+      console.log('Saving schedule to DB:', scheduleData);
+      const response = await fetchWithAuth('/schedule', {
         method: 'POST',
         body: JSON.stringify({ classes: scheduleData.classes, offDays: offDaysData || offDays })
       });
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log('Schedule saved successfully:', result);
+      } else {
+        console.error('Failed to save schedule:', response.status);
+        throw new Error('Save failed');
+      }
     } catch (error) {
+      console.error('Error saving schedule:', error);
       toast({
         title: "Error",
         description: "Failed to save schedule.",

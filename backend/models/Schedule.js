@@ -9,7 +9,7 @@ const scheduleSchema = new mongoose.Schema({
   academicPeriodId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'AcademicPeriod',
-    required: true
+    required: false
   },
   userName: {
     type: String,
@@ -26,9 +26,10 @@ const scheduleSchema = new mongoose.Schema({
   },
   schedule: {
     classes: [{
+      id: { type: String },
       day: { type: String, required: true },
       subject: { type: String, required: true },
-      type: { type: String, required: true },
+      classType: { type: String, required: false },
       startTime: { type: String, required: true },
       endTime: { type: String, required: true },
       building: { type: String },

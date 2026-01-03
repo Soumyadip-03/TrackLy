@@ -14,20 +14,21 @@ router.get('/', protect, async (req, res) => {
     const user = await User.findById(req.user.id);
     const academicPeriod = await AcademicPeriod.findOne({ 
       userId: req.user.id, 
-      semester: user.currentSemester 
+      semester: String(user.currentSemester)
     });
 
-    if (!academicPeriod) {
-      return res.status(200).json({
-        success: true,
-        data: { classes: [] }
-      });
+    let schedule;
+    if (academicPeriod) {
+      schedule = await Schedule.findOne({ 
+        userId: req.user.id, 
+        academicPeriodId: academicPeriod._id 
+      }).sort({ createdAt: -1 });
+    } else {
+      schedule = await Schedule.findOne({ 
+        userId: req.user.id,
+        userSemester: user.currentSemester
+      }).sort({ createdAt: -1 });
     }
-
-    const schedule = await Schedule.findOne({ 
-      userId: req.user.id, 
-      academicPeriodId: academicPeriod._id 
-    }).sort({ createdAt: -1 });
     
     res.status(200).json({
       success: true,
@@ -48,35 +49,72 @@ router.get('/', protect, async (req, res) => {
 router.post('/', protect, async (req, res) => {
   try {
     const { classes, offDays } = req.body;
+    console.log('Received schedule save request:', { classesCount: classes?.length, offDaysCount: offDays?.length });
+    
     const user = await User.findById(req.user.id);
     
     const academicPeriod = await AcademicPeriod.findOne({ 
       userId: req.user.id, 
-      semester: user.currentSemester 
+      semester: String(user.currentSemester)
     });
 
     if (!academicPeriod) {
-      return res.status(400).json({
-        success: false,
-        error: 'Please create an academic period first'
+      console.log('No academic period found, creating schedule without academic period');
+      
+      let schedule = await Schedule.findOne({
+        userId: req.user.id,
+        userSemester: user.currentSemester
+      });
+
+      if (schedule) {
+        schedule.schedule = { classes: classes || [], offDays: offDays || [] };
+        await schedule.save();
+      } else {
+        schedule = await Schedule.create({
+          userId: req.user.id,
+          academicPeriodId: null,
+          userName: user.name,
+          userSemester: user.currentSemester,
+          scheduleId: uuidv4(),
+          schedule: { classes: classes || [], offDays: offDays || [] }
+        });
+      }
+
+      console.log('Schedule saved successfully without academic period');
+      return res.status(200).json({
+        success: true,
+        data: schedule.schedule
       });
     }
 
-    const schedule = await Schedule.create({
+    let schedule = await Schedule.findOne({
       userId: req.user.id,
-      academicPeriodId: academicPeriod._id,
-      userName: user.name,
-      userSemester: user.currentSemester,
-      scheduleId: uuidv4(),
-      schedule: { classes: classes || [], offDays: offDays || [] }
+      academicPeriodId: academicPeriod._id
     });
 
+    if (schedule) {
+      console.log('Updating existing schedule');
+      schedule.schedule = { classes: classes || [], offDays: offDays || [] };
+      await schedule.save();
+    } else {
+      console.log('Creating new schedule');
+      schedule = await Schedule.create({
+        userId: req.user.id,
+        academicPeriodId: academicPeriod._id,
+        userName: user.name,
+        userSemester: user.currentSemester,
+        scheduleId: uuidv4(),
+        schedule: { classes: classes || [], offDays: offDays || [] }
+      });
+    }
+
+    console.log('Schedule saved successfully');
     res.status(200).json({
       success: true,
       data: schedule.schedule
     });
   } catch (err) {
-    console.error(err.message);
+    console.error('Schedule save error:', err.message);
     res.status(500).json({
       success: false,
       error: 'Server error'
