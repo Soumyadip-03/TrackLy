@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation"
 import Link from "next/link"
-import { BarChart3, Calendar, CheckSquare, Home, Info, LogOut, Bell, User, Award, ChevronLeft, ChevronRight, Settings } from "lucide-react"
+import { BarChart3, Calendar, CheckSquare, Home, Info, LogOut, Bell, User, Award, ChevronLeft, ChevronRight, Settings, Shield } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ModeToggle } from "@/components/mode-toggle"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"

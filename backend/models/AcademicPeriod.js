@@ -6,6 +6,10 @@ const AcademicPeriodSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
+  userName: {
+    type: String,
+    required: true
+  },
   semester: {
     type: String,
     required: [true, 'Please provide semester'],

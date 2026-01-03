@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
 import { Save, Camera } from "lucide-react"
 import { AdminBadge } from "@/components/ui/admin-badge"
+import { useProfilePicture } from "@/hooks/useProfilePicture"
 
 interface ProfileData {
   name: string;
@@ -28,6 +29,7 @@ interface PersonalInfoFormProps {
 export function PersonalInfoForm({ onUpdateAction }: PersonalInfoFormProps = {}) {
   const { user } = useAuth()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const profilePictureUrl = useProfilePicture(user?.profilePicture)
   
   const [profileData, setProfileData] = useState<ProfileData>({
     name: "",
@@ -56,12 +58,18 @@ export function PersonalInfoForm({ onUpdateAction }: PersonalInfoFormProps = {})
           const result = await response.json();
           const data = result.data || result;
           
+          console.log('Profile data loaded:', data);
+          console.log('Profile picture path:', data.profilePicture);
+          
+          const picturePath = data.profilePicture ? 
+            (data.profilePicture.startsWith('/') ? data.profilePicture : `/${data.profilePicture}`) : "";
+          
           setProfileData({
             name: data.name || "",
             email: data.email || "",
             studentId: data.studentId || "",
             currentSemester: data.currentSemester || 1,
-            profilePicture: data.profilePicture || "",
+            profilePicture: picturePath,
           });
           
           if (data.role === 'admin') {
@@ -83,10 +91,16 @@ export function PersonalInfoForm({ onUpdateAction }: PersonalInfoFormProps = {})
       }
     };
     
+    const handleProfilePictureUpdate = () => {
+      loadProfile();
+    };
+    
     window.addEventListener('academicPeriodUpdated', handleAcademicPeriodUpdate);
+    window.addEventListener('profilePictureUpdated', handleProfilePictureUpdate);
     
     return () => {
       window.removeEventListener('academicPeriodUpdated', handleAcademicPeriodUpdate);
+      window.removeEventListener('profilePictureUpdated', handleProfilePictureUpdate);
     };
   }, [user]);
 
@@ -222,13 +236,11 @@ export function PersonalInfoForm({ onUpdateAction }: PersonalInfoFormProps = {})
             <div className="relative group cursor-pointer" onClick={handleAvatarClick}>
               <Avatar className="h-24 w-24">
                 {previewUrl ? (
-                  <AvatarImage src={previewUrl} />
-                ) : profileData.profilePicture ? (
+                  <AvatarImage src={previewUrl} alt="Preview" />
+                ) : profilePictureUrl ? (
                   <AvatarImage 
-                    src={buildApiUrl(profileData.profilePicture)} 
-                    onError={(e) => {
-                      e.currentTarget.style.display = 'none'
-                    }}
+                    src={profilePictureUrl}
+                    alt="Profile picture"
                   />
                 ) : null}
                 <AvatarFallback className="text-2xl">{profileData.name?.charAt(0) || user?.email?.charAt(0)}</AvatarFallback>
@@ -240,7 +252,7 @@ export function PersonalInfoForm({ onUpdateAction }: PersonalInfoFormProps = {})
             <div className="flex-1">
               <h3 className="font-semibold text-lg">{profileData.name}</h3>
               <p className="text-sm text-muted-foreground">{profileData.email}</p>
-              {(profileData.profilePicture || previewUrl) && (
+              {(profilePictureUrl || previewUrl) && (
                 <Button
                   variant="ghost"
                   size="sm"
