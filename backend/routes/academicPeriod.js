@@ -68,6 +68,9 @@ router.post('/', protect, async (req, res) => {
       });
     }
     
+    const User = require('../models/User');
+    const user = await User.findById(req.user.id);
+    
     // Check if academic period already exists for this semester
     let period = await AcademicPeriod.findOne({ 
       userId: req.user.id, 
@@ -83,6 +86,7 @@ router.post('/', protect, async (req, res) => {
       // Create new
       period = await AcademicPeriod.create({
         userId: req.user.id,
+        userName: user.name,
         semester,
         startDate,
         endDate

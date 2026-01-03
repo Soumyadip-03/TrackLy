@@ -153,6 +153,7 @@ router.post(
       try {
         await AcademicPeriod.create({
           userId: user._id,
+          userName: name,
           semester: currentSemester.toString(),
           startDate: new Date(), // Placeholder - user will set actual dates
           endDate: new Date() // Placeholder - user will set actual dates
