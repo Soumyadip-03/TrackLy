@@ -53,6 +53,56 @@ const UserSchema = new mongoose.Schema({
     timestamp: Date,
     details: Object
   }],
+  loginHistory: [{
+    timestamp: {
+      type: Date,
+      default: Date.now
+    },
+    ipAddress: String,
+    userAgent: String,
+    deviceInfo: {
+      os: String,
+      browser: String
+    }
+  }],
+  emailHistory: [{
+    emailType: String,
+    subject: String,
+    sentAt: {
+      type: Date,
+      default: Date.now
+    },
+    status: {
+      type: String,
+      enum: ['sent', 'failed', 'pending'],
+      default: 'sent'
+    }
+  }],
+  notificationPreferences: {
+    emailNotifications: {
+      enabled: {
+        type: Boolean,
+        default: true
+      },
+      frequency: {
+        type: String,
+        enum: ['instant', 'daily', 'weekly', 'never'],
+        default: 'instant'
+      },
+      mutedTypes: {
+        type: [String],
+        default: []
+      }
+    },
+    attendanceReminders: {
+      type: Boolean,
+      default: true
+    },
+    attendanceThreshold: {
+      type: String,
+      default: '75'
+    }
+  },
   lastAttendanceUpdate: {
     type: Date,
     default: Date.now

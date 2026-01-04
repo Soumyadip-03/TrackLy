@@ -29,7 +29,6 @@ export function SubjectManager({ onUpdateAction }: SubjectManagerProps = {}) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editCode, setEditCode] = useState("")
 
-  // Load subjects from database
   useEffect(() => {
     loadSubjects();
   }, []);
@@ -157,13 +156,40 @@ export function SubjectManager({ onUpdateAction }: SubjectManagerProps = {}) {
                   </div>
                 </CardContent>
               </Card>
-            )})
-            }
+            )}
+            )}
+            
+            <Card className="shadow-md border-2 border-amber-400 bg-gradient-to-br from-amber-50 to-yellow-50">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xl text-amber-900">PREPARATORY</CardTitle>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-sm text-amber-700 font-medium">BUPRP</span>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="flex justify-between items-center pt-2">
+                  <span className="text-sm font-medium text-amber-900">Total Classes:</span>
+                  <span className="text-xl font-bold text-amber-900">0</span>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         ) : (
-          <div className="text-center py-12 text-muted-foreground">
-            <p className="mb-2">No subjects added yet.</p>
-            <p className="text-sm">Go to the <strong>Schedule</strong> tab and click <strong>"Upload to Subjects"</strong> to sync your subjects.</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <Card className="shadow-md border-2 border-amber-400 bg-gradient-to-br from-amber-50 to-yellow-50">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xl text-amber-900">PREPARATORY</CardTitle>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-sm text-amber-700 font-medium">BUPRP</span>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="flex justify-between items-center pt-2">
+                  <span className="text-sm font-medium text-amber-900">Total Classes:</span>
+                  <span className="text-xl font-bold text-amber-900">0</span>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         )}
       </CardContent>
