@@ -15,6 +15,10 @@ const AttendanceSchema = new mongoose.Schema({
     type: Date,
     required: true
   },
+  subjectName: {
+    type: String,
+    required: true
+  },
   status: {
     type: String,
     enum: ['present', 'absent'],
@@ -22,12 +26,8 @@ const AttendanceSchema = new mongoose.Schema({
   },
   classType: {
     type: String,
-    enum: ['lecture', 'lab', 'tutorial', 'seminar', 'workshop', 'sports', 'yoga', 'none'],
+    enum: ['lecture', 'lab', 'tutorial', 'seminar', 'workshop', 'sports', 'yoga', 'preparatory', 'none'],
     default: 'none'
-  },
-  notes: {
-    type: String,
-    default: ''
   },
   isAutoMarked: {
     type: Boolean,
@@ -57,7 +57,8 @@ const AttendanceSchema = new mongoose.Schema({
   }
 });
 
-// Compound index to prevent duplicate attendance records
-AttendanceSchema.index({ user: 1, subject: 1, date: 1 }, { unique: true });
+// Compound index to allow multiple slots of same subject on same day
+// Using scheduleClassId to differentiate between different time slots
+AttendanceSchema.index({ user: 1, subject: 1, date: 1, scheduleClassId: 1 }, { unique: true });
 
 module.exports = mongoose.model('Attendance', AttendanceSchema); 

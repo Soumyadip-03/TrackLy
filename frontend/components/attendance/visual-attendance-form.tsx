@@ -8,6 +8,7 @@ import { Check, X, ChevronDown } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { fetchWithAuth } from "@/lib/api"
 import { format } from "date-fns"
+import useToastNotification from "@/hooks/use-toast-notification"
 
 interface ClassSlot {
   id: string
@@ -34,14 +35,49 @@ export function VisualAttendanceForm() {
   const [preparatorySubject, setPreparatorySubject] = useState<string>("")
   const [preparatoryStatus, setPreparatoryStatus] = useState<"present" | "absent" | null>(null)
   const [loading, setLoading] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const { success, error } = useToastNotification()
 
   useEffect(() => {
     loadClassesForDate(selectedDate)
+    loadLocalAttendance()
   }, [selectedDate])
 
   useEffect(() => {
     loadHolidaysForMonth(selectedDate)
   }, [selectedDate.getMonth(), selectedDate.getFullYear()])
+
+  const getLocalStorageKey = (date: Date) => {
+    return `attendance_${format(date, 'yyyy-MM-dd')}`
+  }
+
+  const loadLocalAttendance = () => {
+    const key = getLocalStorageKey(selectedDate)
+    const stored = localStorage.getItem(key)
+    if (stored) {
+      const localData = JSON.parse(stored)
+      setClasses(prev => prev.map(cls => {
+        const localStatus = localData[cls.subjectId + '_' + cls.id]
+        return localStatus ? { ...cls, status: localStatus } : cls
+      }))
+      if (localData.preparatory) {
+        setPreparatorySubject(localData.preparatory.subjectId)
+        setPreparatoryStatus(localData.preparatory.status)
+      }
+    }
+  }
+
+  const saveToLocalStorage = (updatedClasses: ClassSlot[], prepSubject?: string, prepStatus?: "present" | "absent" | null) => {
+    const key = getLocalStorageKey(selectedDate)
+    const data: any = {}
+    updatedClasses.forEach(cls => {
+      if (cls.status) data[cls.subjectId + '_' + cls.id] = cls.status
+    })
+    if (prepSubject && prepStatus) {
+      data.preparatory = { subjectId: prepSubject, status: prepStatus }
+    }
+    localStorage.setItem(key, JSON.stringify(data))
+  }
 
   const loadClassesForDate = async (date: Date) => {
     try {
@@ -49,50 +85,46 @@ export function VisualAttendanceForm() {
       const response = await fetchWithAuth('/schedule')
       const data = await response.json()
       
-      console.log('Schedule API response:', data)
-      
       if (data.success && data.data) {
         const dayName = format(date, 'EEEE')
-        console.log('Looking for classes on:', dayName)
         
-        // Get all subjects to match with schedule
         const subjectsResponse = await fetchWithAuth('/subject')
         const subjectsData = await subjectsResponse.json()
         const subjects = subjectsData.data || []
         
-        // Handle data.data which contains { classes: [], offDays: [] }
         const scheduleClasses = data.data.classes || []
-        console.log('All schedule classes:', scheduleClasses)
         
         const scheduledClasses = scheduleClasses.filter(
           (cls: any) => cls.day === dayName
         ).map((cls: any) => {
-          // Find matching subject by name
           const matchedSubject = subjects.find((s: any) => s.name === cls.subject)
           return {
             ...cls,
-            subjectId: cls.subjectId || matchedSubject?._id // Use existing or match by name
+            subjectId: cls.subjectId || matchedSubject?._id
           }
         })
         
-        console.log('Filtered classes for', dayName, ':', scheduledClasses)
-        
-        // Load existing attendance for this date
         const dateStr = format(date, 'yyyy-MM-dd')
         const attendanceResponse = await fetchWithAuth(`/attendance/range?startDate=${dateStr}&endDate=${dateStr}`)
         const attendanceData = await attendanceResponse.json()
         
-        const classesWithStatus = scheduledClasses.map((cls: any) => ({
-          ...cls,
-          status: attendanceData.data?.find((a: any) => 
-            a.subject?._id === cls.subjectId && !a.isPreparatory
-          )?.status || null
-        }))
+        const classesWithStatus = scheduledClasses.map((cls: any) => {
+          const dbAttendance = attendanceData.data?.find((a: any) => 
+            a.subject?._id === cls.subjectId && 
+            a.scheduleClassId === cls.id && 
+            !a.isPreparatory
+          )
+          return {
+            ...cls,
+            status: dbAttendance?.status || null
+          }
+        })
         
-        console.log('Classes with status:', classesWithStatus)
         setClasses(classesWithStatus)
+        
+        // Load local storage after setting DB data
+        setTimeout(() => loadLocalAttendance(), 100)
       } else {
-        console.log('No schedule data found')
         setClasses([])
       }
     } catch (error) {
@@ -117,93 +149,143 @@ export function VisualAttendanceForm() {
     }
   }
 
-  const markAttendance = async (classSlot: ClassSlot, status: "present" | "absent") => {
-    try {
-      console.log('Marking attendance for:', classSlot)
-      
-      if (!classSlot.subjectId) {
-        console.error('No subjectId found for class:', classSlot)
-        return
+  const markAttendance = (classSlot: ClassSlot, status: "present" | "absent") => {
+    if (!classSlot.subjectId) return
+    
+    const updatedClasses = classes.map(cls => {
+      if (cls.id === classSlot.id) {
+        // Toggle if clicking same status
+        return { ...cls, status: cls.status === status ? null : status }
       }
-      
-      const response = await fetchWithAuth('/attendance/per-subject', {
-        method: 'POST',
-        body: JSON.stringify({
-          date: format(selectedDate, 'yyyy-MM-dd'),
-          subjectId: classSlot.subjectId,
-          status,
-          classType: classSlot.classType,
-          scheduleClassId: classSlot.id
-        })
-      })
-      const data = await response.json()
-      
-      console.log('Attendance response:', data)
-      
-      if (data.success) {
-        setClasses(prev => prev.map(cls => 
-          cls.id === classSlot.id ? { ...cls, status } : cls
-        ))
-      }
-    } catch (error) {
-      console.error('Failed to mark attendance:', error)
-    }
+      return cls
+    })
+    setClasses(updatedClasses)
+    saveToLocalStorage(updatedClasses, preparatorySubject, preparatoryStatus)
   }
 
-  const markAllAttendance = async (status: "present" | "absent") => {
-    try {
-      await Promise.all(classes.map(cls => markAttendance(cls, status)))
-    } catch (error) {
-      console.error('Failed to mark all attendance:', error)
-    }
+  const markAllAttendance = (status: "present" | "absent") => {
+    const updatedClasses = classes.map(cls => ({ ...cls, status }))
+    setClasses(updatedClasses)
+    saveToLocalStorage(updatedClasses, preparatorySubject, preparatoryStatus)
   }
 
-  const markPreparatoryAttendance = async (status: "present" | "absent") => {
+  const markPreparatoryAttendance = (status: "present" | "absent") => {
     if (!preparatorySubject) return
     
+    setPreparatoryStatus(status)
+    const updatedClasses = classes.filter(cls => cls.subjectId !== preparatorySubject)
+    setClasses(updatedClasses)
+    saveToLocalStorage(updatedClasses, preparatorySubject, status)
+  }
+
+  const uploadAttendance = async () => {
     try {
-      // Get or create preparatory subject
-      const prepSubjectResponse = await fetchWithAuth('/subject')
-      const prepSubjectData = await prepSubjectResponse.json()
-      let prepSubject = prepSubjectData.data?.find((s: any) => s.classType === 'preparatory')
+      setUploading(true)
+      let successCount = 0
+      let errorCount = 0
       
-      if (!prepSubject) {
-        const createResponse = await fetchWithAuth('/subject', {
-          method: 'POST',
-          body: JSON.stringify({
-            name: 'Preparatory Paper',
-            code: 'BUPRP',
-            classType: 'preparatory',
-            semester: 1
+      const subjectsResponse = await fetchWithAuth('/subject')
+      const subjectsData = await subjectsResponse.json()
+      const allSubjects = subjectsData.data || []
+      
+      // Upload each class slot individually
+      for (const cls of classes) {
+        if (cls.status && cls.subjectId) {
+          // Find subject by name AND classType
+          const matchedSubject = allSubjects.find((s: any) => 
+            (s._id === cls.subjectId || s.name === cls.subject) && 
+            s.classType === cls.classType
+          )
+          
+          if (!matchedSubject) {
+            console.error(`No subject found for ${cls.subject} (${cls.classType})`)
+            errorCount++
+            continue
+          }
+          
+          try {
+            const response = await fetchWithAuth('/attendance/per-subject', {
+              method: 'POST',
+              body: JSON.stringify({
+                date: format(selectedDate, 'yyyy-MM-dd'),
+                subjectId: matchedSubject._id,
+                status: cls.status,
+                classType: cls.classType,
+                scheduleClassId: cls.id
+              })
+            })
+            
+            if (response.ok) {
+              successCount++
+            } else {
+              errorCount++
+              console.error(`Failed to upload ${cls.subject}:`, await response.text())
+            }
+          } catch (err) {
+            errorCount++
+            console.error(`Error uploading ${cls.subject}:`, err)
+          }
+        }
+      }
+      
+      // Upload preparatory if marked
+      if (preparatorySubject && preparatoryStatus) {
+        try {
+          const prepSubjectResponse = await fetchWithAuth('/subject')
+          const prepSubjectData = await prepSubjectResponse.json()
+          let prepSubject = prepSubjectData.data?.find((s: any) => s.classType === 'preparatory')
+          
+          if (!prepSubject) {
+            const createResponse = await fetchWithAuth('/subject', {
+              method: 'POST',
+              body: JSON.stringify({
+                name: 'Preparatory Paper',
+                code: 'BUPRP',
+                classType: 'preparatory',
+                semester: 1
+              })
+            })
+            const createData = await createResponse.json()
+            prepSubject = createData.data
+          }
+          
+          const response = await fetchWithAuth('/attendance/per-subject', {
+            method: 'POST',
+            body: JSON.stringify({
+              date: format(selectedDate, 'yyyy-MM-dd'),
+              subjectId: prepSubject._id,
+              status: preparatoryStatus,
+              classType: 'preparatory',
+              isPreparatory: true,
+              linkedSubjectId: preparatorySubject
+            })
           })
-        })
-        const createData = await createResponse.json()
-        prepSubject = createData.data
+          
+          if (response.ok) {
+            successCount++
+          } else {
+            errorCount++
+          }
+        } catch (err) {
+          errorCount++
+          console.error('Error uploading preparatory:', err)
+        }
       }
       
-      // Mark preparatory attendance (this increments preparatory counters)
-      const response = await fetchWithAuth('/attendance/per-subject', {
-        method: 'POST',
-        body: JSON.stringify({
-          date: format(selectedDate, 'yyyy-MM-dd'),
-          subjectId: prepSubject._id,
-          status,
-          classType: 'preparatory',
-          isPreparatory: true,
-          linkedSubjectId: preparatorySubject
-        })
-      })
-      const data = await response.json()
-      
-      if (data.success) {
-        setPreparatoryStatus(status)
-        
-        // IMPORTANT: Remove the linked subject from classes list for this day
-        // This prevents it from being marked and counted
-        setClasses(prev => prev.filter(cls => cls.subjectId !== preparatorySubject))
+      if (successCount > 0) {
+        success(
+          'Attendance Uploaded!',
+          `Successfully uploaded ${successCount} record${successCount > 1 ? 's' : ''}${errorCount > 0 ? `. ${errorCount} failed.` : ''}`
+        )
+        // Don't clear localStorage - keep UI state
+      } else {
+        error('Upload Failed', 'No attendance records were uploaded. Please try again.')
       }
-    } catch (error) {
-      console.error('Failed to mark preparatory attendance:', error)
+    } catch (err) {
+      console.error('Failed to upload attendance:', err)
+      error('Upload Failed', 'An error occurred while uploading attendance.')
+    } finally {
+      setUploading(false)
     }
   }
 
@@ -376,22 +458,31 @@ export function VisualAttendanceForm() {
             )}
 
             {/* Action Buttons */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <Button 
+                  variant="outline" 
+                  className="w-full h-11 rounded-lg border-2 border-green-600 text-green-600 hover:bg-green-600 hover:text-white font-semibold transition-colors"
+                  onClick={() => markAllAttendance('present')}
+                  disabled={classes.length === 0}
+                >
+                  Mark all Present
+                </Button>
+                <Button 
+                  variant="outline" 
+                  className="w-full h-11 rounded-lg border-2 border-red-600 text-red-600 hover:bg-red-600 hover:text-white font-semibold transition-colors"
+                  onClick={() => markAllAttendance('absent')}
+                  disabled={classes.length === 0}
+                >
+                  Mark all Absent
+                </Button>
+              </div>
               <Button 
-                variant="outline" 
-                className="w-full h-11 rounded-lg border-2 border-green-600 text-green-600 hover:bg-green-600 hover:text-white font-semibold transition-colors"
-                onClick={() => markAllAttendance('present')}
-                disabled={classes.length === 0}
+                className="w-full h-11 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 font-semibold transition-colors"
+                onClick={uploadAttendance}
+                disabled={classes.length === 0 || uploading}
               >
-                Mark all Present
-              </Button>
-              <Button 
-                variant="outline" 
-                className="w-full h-11 rounded-lg border-2 border-red-600 text-red-600 hover:bg-red-600 hover:text-white font-semibold transition-colors"
-                onClick={() => markAllAttendance('absent')}
-                disabled={classes.length === 0}
-              >
-                Mark all Absent
+                {uploading ? 'Uploading...' : 'Upload Attendance'}
               </Button>
             </div>
           </CardContent>

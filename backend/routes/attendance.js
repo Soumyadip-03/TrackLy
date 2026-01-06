@@ -183,31 +183,46 @@ router.post(
         });
       }
 
+      // Verify classType matches subject classType
+      if (classType && subject.classType !== classType && !isPreparatory) {
+        return res.status(400).json({
+          success: false,
+          error: `Class type mismatch. Expected ${subject.classType} but got ${classType}`
+        });
+      }
+
       // Format date to remove time portion
       const formattedDate = new Date(date);
       formattedDate.setHours(0, 0, 0, 0);
 
-      // Check if attendance record already exists
+      // Check if attendance record already exists for this specific class slot
       let attendance = await Attendance.findOne({
         user: userId,
         subject: subjectId,
-        date: formattedDate
+        date: formattedDate,
+        scheduleClassId: scheduleClassId || ''
       });
+
+      let isNewRecord = false;
+      let oldStatus = null;
 
       if (attendance) {
         // Update existing record
+        oldStatus = attendance.status;
         attendance.status = status;
         attendance.calculationType = 'perSubject';
+        attendance.subjectName = subject.name;
         if (classType) attendance.classType = classType;
-        if (scheduleClassId) attendance.scheduleClassId = scheduleClassId;
         if (isPreparatory !== undefined) attendance.isPreparatory = isPreparatory;
         if (linkedSubjectId) attendance.linkedSubjectId = linkedSubjectId;
         await attendance.save();
       } else {
         // Create new record
+        isNewRecord = true;
         attendance = await Attendance.create({
           user: userId,
           subject: subjectId,
+          subjectName: subject.name,
           date: formattedDate,
           status,
           calculationType: 'perSubject',
@@ -218,17 +233,32 @@ router.post(
         });
       }
 
-      // Update subject totals
-      if (status === 'present') {
-        subject.attendedClasses += 1;
-        if (classType && subject.classTypeStats[classType]) {
-          subject.classTypeStats[classType].attended += 1;
+      // Update subject totals only for new records
+      if (isNewRecord) {
+        if (status === 'present') {
+          subject.attendedClasses += 1;
+          if (classType && subject.classTypeStats[classType]) {
+            subject.classTypeStats[classType].attended += 1;
+          }
         }
-      }
-      
-      subject.totalClasses += 1;
-      if (classType && subject.classTypeStats[classType]) {
-        subject.classTypeStats[classType].total += 1;
+        
+        subject.totalClasses += 1;
+        if (classType && subject.classTypeStats[classType]) {
+          subject.classTypeStats[classType].total += 1;
+        }
+      } else if (oldStatus !== status) {
+        // Handle status change for existing records
+        if (oldStatus === 'present' && status === 'absent') {
+          subject.attendedClasses -= 1;
+          if (classType && subject.classTypeStats[classType]) {
+            subject.classTypeStats[classType].attended -= 1;
+          }
+        } else if (oldStatus === 'absent' && status === 'present') {
+          subject.attendedClasses += 1;
+          if (classType && subject.classTypeStats[classType]) {
+            subject.classTypeStats[classType].attended += 1;
+          }
+        }
       }
       
       const attendancePercentage = subject.getAttendancePercentage();
