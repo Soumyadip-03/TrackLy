@@ -170,7 +170,7 @@ router.post(
     }
 
     try {
-      const { date, subjectId, status, classType, scheduleClassId, isPreparatory, linkedSubjectId } = req.body;
+      const { date, subjectId, status, classType, scheduleClassId, isPreparatory, linkedSubjectId, hasPreparatoryTag } = req.body;
       const userId = req.user.id;
 
       // Check if subject exists and belongs to user
@@ -184,7 +184,7 @@ router.post(
       }
 
       // Verify classType matches subject classType
-      if (classType && subject.classType !== classType && !isPreparatory) {
+      if (classType && subject.classType !== classType && !isPreparatory && !hasPreparatoryTag) {
         return res.status(400).json({
           success: false,
           error: `Class type mismatch. Expected ${subject.classType} but got ${classType}`
@@ -215,6 +215,7 @@ router.post(
         if (classType) attendance.classType = classType;
         if (isPreparatory !== undefined) attendance.isPreparatory = isPreparatory;
         if (linkedSubjectId) attendance.linkedSubjectId = linkedSubjectId;
+        if (hasPreparatoryTag !== undefined) attendance.hasPreparatoryTag = hasPreparatoryTag;
         await attendance.save();
       } else {
         // Create new record
@@ -229,34 +230,60 @@ router.post(
           classType: classType || 'none',
           scheduleClassId: scheduleClassId || '',
           isPreparatory: isPreparatory || false,
-          linkedSubjectId: linkedSubjectId || null
+          linkedSubjectId: linkedSubjectId || null,
+          hasPreparatoryTag: hasPreparatoryTag || false
         });
       }
 
-      // Update subject totals only for new records
-      if (isNewRecord) {
-        if (status === 'present') {
-          subject.attendedClasses += 1;
-          if (classType && subject.classTypeStats[classType]) {
-            subject.classTypeStats[classType].attended += 1;
+      // If slot has preparatory tag, update Preparatory subject counters instead
+      if (hasPreparatoryTag) {
+        const preparatorySubject = await Subject.findOne({ 
+          user: userId, 
+          name: 'Preparatory',
+          classType: 'preparatory'
+        });
+
+        if (preparatorySubject) {
+          if (isNewRecord) {
+            if (status === 'present') {
+              preparatorySubject.attendedClasses += 1;
+            }
+            preparatorySubject.totalClasses += 1;
+          } else if (oldStatus !== status) {
+            if (oldStatus === 'present' && status === 'absent') {
+              preparatorySubject.attendedClasses -= 1;
+            } else if (oldStatus === 'absent' && status === 'present') {
+              preparatorySubject.attendedClasses += 1;
+            }
           }
+          await preparatorySubject.save();
         }
-        
-        subject.totalClasses += 1;
-        if (classType && subject.classTypeStats[classType]) {
-          subject.classTypeStats[classType].total += 1;
-        }
-      } else if (oldStatus !== status) {
-        // Handle status change for existing records
-        if (oldStatus === 'present' && status === 'absent') {
-          subject.attendedClasses -= 1;
-          if (classType && subject.classTypeStats[classType]) {
-            subject.classTypeStats[classType].attended -= 1;
+      } else {
+        // Update subject totals only for new records (normal flow)
+        if (isNewRecord) {
+          if (status === 'present') {
+            subject.attendedClasses += 1;
+            if (classType && subject.classTypeStats[classType]) {
+              subject.classTypeStats[classType].attended += 1;
+            }
           }
-        } else if (oldStatus === 'absent' && status === 'present') {
-          subject.attendedClasses += 1;
+          
+          subject.totalClasses += 1;
           if (classType && subject.classTypeStats[classType]) {
-            subject.classTypeStats[classType].attended += 1;
+            subject.classTypeStats[classType].total += 1;
+          }
+        } else if (oldStatus !== status) {
+          // Handle status change for existing records
+          if (oldStatus === 'present' && status === 'absent') {
+            subject.attendedClasses -= 1;
+            if (classType && subject.classTypeStats[classType]) {
+              subject.classTypeStats[classType].attended -= 1;
+            }
+          } else if (oldStatus === 'absent' && status === 'present') {
+            subject.attendedClasses += 1;
+            if (classType && subject.classTypeStats[classType]) {
+              subject.classTypeStats[classType].attended += 1;
+            }
           }
         }
       }

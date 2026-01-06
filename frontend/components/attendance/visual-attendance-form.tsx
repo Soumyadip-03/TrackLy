@@ -19,7 +19,7 @@ interface ClassSlot {
   building?: string
   room?: string
   status?: "present" | "absent" | null
-  isInDatabase?: boolean
+  hasPreparatoryTag?: boolean
 }
 
 interface Holiday {
@@ -33,7 +33,7 @@ export function VisualAttendanceForm() {
   const [classes, setClasses] = useState<ClassSlot[]>([])
   const [holidays, setHolidays] = useState<Holiday[]>([])
   const [preparatorySubject, setPreparatorySubject] = useState<string>("")
-  const [preparatoryStatus, setPreparatoryStatus] = useState<"present" | "absent" | null>(null)
+  const [preparatoryTags, setPreparatoryTags] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
   const { success, error } = useToastNotification()
@@ -45,6 +45,53 @@ export function VisualAttendanceForm() {
   useEffect(() => {
     loadHolidaysForMonth(selectedDate)
   }, [selectedDate.getMonth(), selectedDate.getFullYear()])
+
+  const getLocalStorageKey = (date: Date) => {
+    return `attendance_${format(date, 'yyyy-MM-dd')}`
+  }
+
+  const getPreparatoryTagsKey = (date: Date) => {
+    return `preparatory_tags_${format(date, 'yyyy-MM-dd')}`
+  }
+
+  const loadLocalAttendance = () => {
+    const key = getLocalStorageKey(selectedDate)
+    const stored = localStorage.getItem(key)
+    if (stored) {
+      const localData = JSON.parse(stored)
+      setClasses(prev => prev.map(cls => {
+        const localStatus = localData[cls.subjectId + '_' + cls.id]
+        // Only override if localStorage has a different value
+        return localStatus !== undefined ? { ...cls, status: localStatus } : cls
+      }))
+    }
+    
+    // Load preparatory tags
+    const tagsKey = getPreparatoryTagsKey(selectedDate)
+    const storedTags = localStorage.getItem(tagsKey)
+    if (storedTags) {
+      const tagArray = JSON.parse(storedTags)
+      setPreparatoryTags(new Set(tagArray))
+      setClasses(prev => prev.map(cls => ({
+        ...cls,
+        hasPreparatoryTag: tagArray.includes(cls.subjectId + '_' + cls.id)
+      })))
+    }
+  }
+
+  const saveToLocalStorage = (updatedClasses: ClassSlot[]) => {
+    const key = getLocalStorageKey(selectedDate)
+    const data: any = {}
+    updatedClasses.forEach(cls => {
+      if (cls.status) data[cls.subjectId + '_' + cls.id] = cls.status
+    })
+    localStorage.setItem(key, JSON.stringify(data))
+  }
+
+  const savePreparatoryTags = (tags: Set<string>) => {
+    const tagsKey = getPreparatoryTagsKey(selectedDate)
+    localStorage.setItem(tagsKey, JSON.stringify(Array.from(tags)))
+  }
 
   const loadClassesForDate = async (date: Date) => {
     try {
@@ -85,11 +132,36 @@ export function VisualAttendanceForm() {
           return {
             ...cls,
             status: dbAttendance?.status || null,
-            isInDatabase: !!dbAttendance
+            hasPreparatoryTag: dbAttendance?.hasPreparatoryTag || false
           }
         })
         
         setClasses(classesWithStatus)
+        
+        // Immediately merge localStorage with DB data
+        const key = getLocalStorageKey(date)
+        const stored = localStorage.getItem(key)
+        if (stored) {
+          const localData = JSON.parse(stored)
+          const mergedClasses = classesWithStatus.map((cls: any) => {
+            const localStatus = localData[cls.subjectId + '_' + cls.id]
+            // localStorage takes priority if it exists
+            return localStatus !== undefined ? { ...cls, status: localStatus } : cls
+          })
+          setClasses(mergedClasses)
+        }
+        
+        // Load preparatory tags
+        const tagsKey = getPreparatoryTagsKey(date)
+        const storedTags = localStorage.getItem(tagsKey)
+        if (storedTags) {
+          const tagArray = JSON.parse(storedTags)
+          setPreparatoryTags(new Set(tagArray))
+          setClasses(prev => prev.map(cls => ({
+            ...cls,
+            hasPreparatoryTag: tagArray.includes(cls.subjectId + '_' + cls.id) || cls.hasPreparatoryTag
+          })))
+        }
       } else {
         setClasses([])
       }
@@ -120,27 +192,53 @@ export function VisualAttendanceForm() {
     
     const updatedClasses = classes.map(cls => {
       if (cls.id === classSlot.id) {
-        if (cls.isInDatabase) {
-          return { ...cls, status }
-        }
+        // Toggle if clicking same status
         return { ...cls, status: cls.status === status ? null : status }
       }
       return cls
     })
     setClasses(updatedClasses)
+    saveToLocalStorage(updatedClasses)
   }
 
   const markAllAttendance = (status: "present" | "absent") => {
     const updatedClasses = classes.map(cls => ({ ...cls, status }))
     setClasses(updatedClasses)
+    saveToLocalStorage(updatedClasses)
   }
 
-  const markPreparatoryAttendance = (status: "present" | "absent") => {
+  const addPreparatoryTag = () => {
     if (!preparatorySubject) return
     
-    setPreparatoryStatus(status)
-    const updatedClasses = classes.filter(cls => cls.subjectId !== preparatorySubject)
+    const classKey = preparatorySubject
+    const newTags = new Set(preparatoryTags)
+    newTags.add(classKey)
+    setPreparatoryTags(newTags)
+    
+    const updatedClasses = classes.map(cls => {
+      if (cls.subjectId + '_' + cls.id === classKey) {
+        return { ...cls, hasPreparatoryTag: true }
+      }
+      return cls
+    })
     setClasses(updatedClasses)
+    savePreparatoryTags(newTags)
+    setPreparatorySubject("") // Reset dropdown
+  }
+
+  const removePreparatoryTag = (classKey: string) => {
+    const newTags = new Set(preparatoryTags)
+    newTags.delete(classKey)
+    setPreparatoryTags(newTags)
+    
+    const updatedClasses = classes.map(cls => {
+      if (cls.subjectId + '_' + cls.id === classKey) {
+        return { ...cls, hasPreparatoryTag: false }
+      }
+      return cls
+    })
+    setClasses(updatedClasses)
+    savePreparatoryTags(newTags)
   }
 
   const uploadAttendance = async () => {
@@ -176,7 +274,8 @@ export function VisualAttendanceForm() {
                 subjectId: matchedSubject._id,
                 status: cls.status,
                 classType: cls.classType,
-                scheduleClassId: cls.id
+                scheduleClassId: cls.id,
+                hasPreparatoryTag: cls.hasPreparatoryTag || false
               })
             })
             
@@ -193,64 +292,25 @@ export function VisualAttendanceForm() {
         }
       }
       
-      // Upload preparatory if marked
-      if (preparatorySubject && preparatoryStatus) {
-        try {
-          const prepSubjectResponse = await fetchWithAuth('/subject')
-          const prepSubjectData = await prepSubjectResponse.json()
-          let prepSubject = prepSubjectData.data?.find((s: any) => s.classType === 'preparatory')
-          
-          if (!prepSubject) {
-            const createResponse = await fetchWithAuth('/subject', {
-              method: 'POST',
-              body: JSON.stringify({
-                name: 'Preparatory Paper',
-                code: 'BUPRP',
-                classType: 'preparatory',
-                semester: 1
-              })
-            })
-            const createData = await createResponse.json()
-            prepSubject = createData.data
-          }
-          
-          const response = await fetchWithAuth('/attendance/per-subject', {
-            method: 'POST',
-            body: JSON.stringify({
-              date: format(selectedDate, 'yyyy-MM-dd'),
-              subjectId: prepSubject._id,
-              status: preparatoryStatus,
-              classType: 'preparatory',
-              isPreparatory: true,
-              linkedSubjectId: preparatorySubject
-            })
-          })
-          
-          if (response.ok) {
-            successCount++
-          } else {
-            errorCount++
-          }
-        } catch (err) {
-          errorCount++
-          console.error('Error uploading preparatory:', err)
-        }
-      }
-      
       if (successCount > 0) {
         success(
           'Attendance Uploaded!',
           `Successfully uploaded ${successCount} record${successCount > 1 ? 's' : ''}${errorCount > 0 ? `. ${errorCount} failed.` : ''}`
         )
+        
+        // Clear localStorage after successful upload
+        const key = getLocalStorageKey(selectedDate)
+        localStorage.removeItem(key)
+        
+        // Reload from database to sync across devices
         await loadClassesForDate(selectedDate)
-        setUploading(false)
       } else {
         error('Upload Failed', 'No attendance records were uploaded. Please try again.')
-        setUploading(false)
       }
     } catch (err) {
       console.error('Failed to upload attendance:', err)
       error('Upload Failed', 'An error occurred while uploading attendance.')
+    } finally {
       setUploading(false)
     }
   }
@@ -337,7 +397,20 @@ export function VisualAttendanceForm() {
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-semibold truncate">{cls.subject}</div>
+                        <div className="flex items-center gap-2">
+                          <div className="text-sm font-semibold truncate">{cls.subject}</div>
+                          {cls.hasPreparatoryTag && (
+                            <div className="flex items-center gap-1">
+                              <span className="px-2 py-0.5 text-xs font-semibold bg-amber-500 text-white rounded">Preparatory</span>
+                              <button
+                                onClick={() => removePreparatoryTag(cls.subjectId + '_' + cls.id)}
+                                className="text-red-600 hover:text-red-800 text-xs font-bold"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          )}
+                        </div>
                         <div className="text-xs text-muted-foreground mt-1">
                           {cls.classType && <span className="capitalize">{cls.classType}</span>}
                           {cls.classType && <span> • </span>}
@@ -379,53 +452,33 @@ export function VisualAttendanceForm() {
 
             {/* Preparatory Class Card */}
             {classes.length > 0 && (
-              <div className={`border-2 rounded-lg p-3 flex items-center justify-between transition-colors ${
-                preparatoryStatus === 'present' ? 'bg-green-50 border-green-400 dark:bg-green-950 dark:border-green-600' :
-                preparatoryStatus === 'absent' ? 'bg-red-50 border-red-400 dark:bg-red-950 dark:border-red-600' :
-                'border-amber-400 bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-950 dark:to-yellow-950'
-              }`}>
-                <div className="flex items-center gap-2 flex-1">
+              <div className="border-2 rounded-lg p-3 border-amber-400 bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-950 dark:to-yellow-950">
+                <div className="flex items-center justify-between gap-3">
                   <span className="text-sm font-semibold text-amber-900 dark:text-amber-100">Preparatory Class</span>
-                  {preparatorySubject && (
-                    <span className="text-xs text-amber-700 dark:text-amber-300 font-bold">
-                      {classes.find(c => c.subjectId === preparatorySubject)?.subject}
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  <select
-                    value={preparatorySubject}
-                    onChange={(e) => {
-                      setPreparatorySubject(e.target.value)
-                      setPreparatoryStatus(null)
-                    }}
-                    className="h-8 px-2 text-xs border-2 border-amber-600 rounded-md bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-100 font-medium"
-                  >
-                    <option value="">Select</option>
-                    {classes.map((cls, index) => (
-                      <option key={cls.id || `prep-${index}`} value={cls.subjectId}>
-                        {cls.subject} • {cls.startTime} - {cls.endTime}
-                      </option>
-                    ))}
-                  </select>
-                  <Button 
-                    size="icon" 
-                    variant="ghost" 
-                    className="h-8 w-8 rounded-md"
-                    onClick={() => markPreparatoryAttendance('present')}
-                    disabled={!preparatorySubject}
-                  >
-                    <Check className="h-4 w-4 text-green-600" />
-                  </Button>
-                  <Button 
-                    size="icon" 
-                    variant="ghost" 
-                    className="h-8 w-8 rounded-md"
-                    onClick={() => markPreparatoryAttendance('absent')}
-                    disabled={!preparatorySubject}
-                  >
-                    <X className="h-4 w-4 text-red-600" />
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={preparatorySubject}
+                      onChange={(e) => setPreparatorySubject(e.target.value)}
+                      className="h-8 px-2 text-xs border-2 border-amber-600 rounded-md bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-100 font-medium"
+                    >
+                      <option value="">Select</option>
+                      {classes
+                        .filter(cls => !cls.status && !cls.hasPreparatoryTag)
+                        .map((cls, index) => (
+                          <option key={cls.id || `prep-${index}`} value={cls.subjectId + '_' + cls.id}>
+                            {cls.subject} • {cls.startTime} - {cls.endTime}
+                          </option>
+                        ))}
+                    </select>
+                    <Button 
+                      size="sm"
+                      className="h-8 px-3 bg-amber-600 hover:bg-amber-700 text-white"
+                      onClick={addPreparatoryTag}
+                      disabled={!preparatorySubject}
+                    >
+                      Okay
+                    </Button>
+                  </div>
                 </div>
               </div>
             )}

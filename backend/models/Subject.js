@@ -15,7 +15,7 @@ const SubjectSchema = new mongoose.Schema({
   },
   classType: {
     type: String,
-    enum: ['lecture', 'lab', 'tutorial', 'seminar', 'workshop', 'sports', 'yoga', 'none'],
+    enum: ['lecture', 'lab', 'tutorial', 'seminar', 'workshop', 'sports', 'yoga', 'preparatory', 'none'],
     default: 'none'
   },
   semester: {
