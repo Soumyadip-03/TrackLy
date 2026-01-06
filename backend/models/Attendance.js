@@ -20,6 +20,32 @@ const AttendanceSchema = new mongoose.Schema({
     enum: ['present', 'absent'],
     required: true
   },
+  classType: {
+    type: String,
+    enum: ['lecture', 'lab', 'tutorial', 'seminar', 'workshop', 'sports', 'yoga', 'none'],
+    default: 'none'
+  },
+  notes: {
+    type: String,
+    default: ''
+  },
+  isAutoMarked: {
+    type: Boolean,
+    default: false
+  },
+  scheduleClassId: {
+    type: String,
+    default: ''
+  },
+  isPreparatory: {
+    type: Boolean,
+    default: false
+  },
+  linkedSubjectId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Subject',
+    default: null
+  },
   calculationType: {
     type: String,
     enum: ['wholeDay', 'perSubject'],

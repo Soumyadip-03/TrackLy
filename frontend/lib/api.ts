@@ -54,7 +54,7 @@ export async function fetchWithAuth(endpoint: string, options: RequestInit = {})
     console.log('Fetching:', url)
     
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 10000)
+    const timeoutId = setTimeout(() => controller.abort(), 30000)
     
     const fetchOptions = {
       ...options,
@@ -77,10 +77,7 @@ export async function fetchWithAuth(endpoint: string, options: RequestInit = {})
     
     return response
   } catch (error) {
-    console.error('Fetch error details:', {
-      endpoint,
-      error: error instanceof Error ? error.message : String(error),
-    })
+    console.error('Fetch error:', endpoint, error instanceof Error ? error.message : String(error))
     
     // If offline mode is enabled, try to return cached data
     if (isOfflineMode()) {

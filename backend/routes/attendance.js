@@ -4,7 +4,6 @@ const { body, validationResult } = require('express-validator');
 const Attendance = require('../models/Attendance');
 const Subject = require('../models/Subject');
 const User = require('../models/User');
-const AttendanceRecord = require('../models/AttendanceRecord');
 const { protect } = require('../middleware/auth');
 const { createNotification } = require('../utils/notificationHelper');
 
@@ -171,7 +170,7 @@ router.post(
     }
 
     try {
-      const { date, subjectId, status } = req.body;
+      const { date, subjectId, status, classType, scheduleClassId, isPreparatory, linkedSubjectId } = req.body;
       const userId = req.user.id;
 
       // Check if subject exists and belongs to user
@@ -199,6 +198,10 @@ router.post(
         // Update existing record
         attendance.status = status;
         attendance.calculationType = 'perSubject';
+        if (classType) attendance.classType = classType;
+        if (scheduleClassId) attendance.scheduleClassId = scheduleClassId;
+        if (isPreparatory !== undefined) attendance.isPreparatory = isPreparatory;
+        if (linkedSubjectId) attendance.linkedSubjectId = linkedSubjectId;
         await attendance.save();
       } else {
         // Create new record
@@ -207,16 +210,27 @@ router.post(
           subject: subjectId,
           date: formattedDate,
           status,
-          calculationType: 'perSubject'
+          calculationType: 'perSubject',
+          classType: classType || 'none',
+          scheduleClassId: scheduleClassId || '',
+          isPreparatory: isPreparatory || false,
+          linkedSubjectId: linkedSubjectId || null
         });
       }
 
       // Update subject totals
       if (status === 'present') {
         subject.attendedClasses += 1;
+        if (classType && subject.classTypeStats[classType]) {
+          subject.classTypeStats[classType].attended += 1;
+        }
       }
       
       subject.totalClasses += 1;
+      if (classType && subject.classTypeStats[classType]) {
+        subject.classTypeStats[classType].total += 1;
+      }
+      
       const attendancePercentage = subject.getAttendancePercentage();
       await subject.save();
 
@@ -396,50 +410,6 @@ router.get('/range', protect, async (req, res) => {
   }
 });
 
-// @desc    Get all attendance records (schedule-based)
-// @route   GET /api/attendance/records
-// @access  Private
-router.get('/records', protect, async (req, res) => {
-  try {
-    const records = await AttendanceRecord.find({ userId: req.user.id }).sort({ date: -1 });
-    
-    res.status(200).json({
-      success: true,
-      data: records
-    });
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).json({
-      success: false,
-      error: 'Server error'
-    });
-  }
-});
 
-// @desc    Save attendance records (schedule-based)
-// @route   POST /api/attendance/records
-// @access  Private
-router.post('/records', protect, async (req, res) => {
-  try {
-    const { date, subjects } = req.body;
-
-    const record = await AttendanceRecord.create({
-      userId: req.user.id,
-      date,
-      subjects
-    });
-
-    res.status(200).json({
-      success: true,
-      data: record
-    });
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).json({
-      success: false,
-      error: 'Server error'
-    });
-  }
-});
 
 module.exports = router; 

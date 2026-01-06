@@ -36,6 +36,46 @@ const SubjectSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  classTypeStats: {
+    lecture: {
+      total: { type: Number, default: 0 },
+      attended: { type: Number, default: 0 }
+    },
+    lab: {
+      total: { type: Number, default: 0 },
+      attended: { type: Number, default: 0 }
+    },
+    tutorial: {
+      total: { type: Number, default: 0 },
+      attended: { type: Number, default: 0 }
+    },
+    seminar: {
+      total: { type: Number, default: 0 },
+      attended: { type: Number, default: 0 }
+    },
+    workshop: {
+      total: { type: Number, default: 0 },
+      attended: { type: Number, default: 0 }
+    },
+    sports: {
+      total: { type: Number, default: 0 },
+      attended: { type: Number, default: 0 }
+    },
+    yoga: {
+      total: { type: Number, default: 0 },
+      attended: { type: Number, default: 0 }
+    },
+    none: {
+      total: { type: Number, default: 0 },
+      attended: { type: Number, default: 0 }
+    }
+  },
+  targetPercentage: {
+    type: Number,
+    default: 75,
+    min: 0,
+    max: 100
+  },
   classesPerWeek: {
     type: Number,
     default: 0

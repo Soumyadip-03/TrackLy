@@ -27,6 +27,10 @@ const scheduleSchema = new mongoose.Schema({
   schedule: {
     classes: [{
       id: { type: String },
+      subjectId: { 
+        type: mongoose.Schema.Types.ObjectId, 
+        ref: 'Subject'
+      },
       day: { type: String, required: true },
       subject: { type: String, required: true },
       classType: { type: String, required: false },
