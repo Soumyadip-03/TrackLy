@@ -58,7 +58,8 @@ export function VisualAttendanceForm() {
       const localData = JSON.parse(stored)
       setClasses(prev => prev.map(cls => {
         const localStatus = localData[cls.subjectId + '_' + cls.id]
-        return localStatus ? { ...cls, status: localStatus } : cls
+        // Only override if localStorage has a different value
+        return localStatus !== undefined ? { ...cls, status: localStatus } : cls
       }))
       if (localData.preparatory) {
         setPreparatorySubject(localData.preparatory.subjectId)
@@ -122,8 +123,23 @@ export function VisualAttendanceForm() {
         
         setClasses(classesWithStatus)
         
-        // Load local storage after setting DB data
-        setTimeout(() => loadLocalAttendance(), 100)
+        // Immediately merge localStorage with DB data
+        const key = getLocalStorageKey(date)
+        const stored = localStorage.getItem(key)
+        if (stored) {
+          const localData = JSON.parse(stored)
+          const mergedClasses = classesWithStatus.map((cls: any) => {
+            const localStatus = localData[cls.subjectId + '_' + cls.id]
+            // localStorage takes priority if it exists
+            return localStatus !== undefined ? { ...cls, status: localStatus } : cls
+          })
+          setClasses(mergedClasses)
+          
+          if (localData.preparatory) {
+            setPreparatorySubject(localData.preparatory.subjectId)
+            setPreparatoryStatus(localData.preparatory.status)
+          }
+        }
       } else {
         setClasses([])
       }
@@ -294,7 +310,7 @@ export function VisualAttendanceForm() {
 
   return (
     <div className="w-full h-[calc(100vh-12rem)] overflow-hidden">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
+      <div className="grid grid-cols-1 lg:grid-cols-[30%_70%] gap-6 h-full">
         {/* Left Column */}
         <div className="flex flex-col gap-4 h-full overflow-hidden">
           {/* Calendar Card */}
@@ -343,7 +359,13 @@ export function VisualAttendanceForm() {
         {/* Right Column */}
         <Card className="h-full overflow-hidden">
           <CardContent className="p-3 flex flex-col h-full gap-3">
-            <h3 className="text-base font-semibold">Classes</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-semibold">Classes</h3>
+              <div className="text-sm text-muted-foreground">
+                <span className="font-medium">{format(selectedDate, 'EEEE, dd MMM yyyy')}</span>
+                <span className="ml-3">Total: {classes.length}</span>
+              </div>
+            </div>
             
             {/* Subjects Grid */}
             <div className="flex-1 overflow-y-auto space-y-2 pr-2 scrollbar-thin">
@@ -359,45 +381,48 @@ export function VisualAttendanceForm() {
                 classes.map((cls, index) => (
                   <div 
                     key={cls.id || `class-${index}`} 
-                    className={`border-2 rounded-lg p-3 flex items-center justify-between transition-all ${
+                    className={`border-2 rounded-lg p-3 transition-all ${
                       cls.status === 'present' ? 'bg-green-50 border-green-400 dark:bg-green-950 dark:border-green-600' : 
                       cls.status === 'absent' ? 'bg-red-50 border-red-400 dark:bg-red-950 dark:border-red-600' : 
                       'bg-card border-border hover:border-primary/50'
                     }`}
                   >
-                    <div className="flex-1">
-                      <span className="text-sm font-semibold">{cls.subject}</span>
-                      <span className="text-xs text-muted-foreground ml-2">
-                        {cls.classType && <span className="capitalize">{cls.classType} • </span>}
-                        {cls.startTime} - {cls.endTime}
-                        {cls.room && ` • ${cls.room}`}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button 
-                        onClick={() => markAttendance(cls, 'present')}
-                        className={`h-8 w-8 rounded-md flex items-center justify-center transition-colors ${
-                          cls.status === 'present' 
-                            ? 'bg-green-600' 
-                            : 'hover:bg-green-100 dark:hover:bg-green-900'
-                        }`}
-                      >
-                        <Check className={`h-4 w-4 ${
-                          cls.status === 'present' ? 'text-white' : 'text-green-600'
-                        }`} />
-                      </button>
-                      <button 
-                        onClick={() => markAttendance(cls, 'absent')}
-                        className={`h-8 w-8 rounded-md flex items-center justify-center transition-colors ${
-                          cls.status === 'absent' 
-                            ? 'bg-red-600' 
-                            : 'hover:bg-red-100 dark:hover:bg-red-900'
-                        }`}
-                      >
-                        <X className={`h-4 w-4 ${
-                          cls.status === 'absent' ? 'text-white' : 'text-red-600'
-                        }`} />
-                      </button>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-semibold truncate">{cls.subject}</div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          {cls.classType && <span className="capitalize">{cls.classType}</span>}
+                          {cls.classType && <span> • </span>}
+                          <span>{cls.startTime} - {cls.endTime}</span>
+                          {cls.room && <span> • {cls.room}</span>}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <button 
+                          onClick={() => markAttendance(cls, 'present')}
+                          className={`h-8 w-8 rounded-md flex items-center justify-center transition-colors ${
+                            cls.status === 'present' 
+                              ? 'bg-green-600' 
+                              : 'hover:bg-green-100 dark:hover:bg-green-900'
+                          }`}
+                        >
+                          <Check className={`h-4 w-4 ${
+                            cls.status === 'present' ? 'text-white' : 'text-green-600'
+                          }`} />
+                        </button>
+                        <button 
+                          onClick={() => markAttendance(cls, 'absent')}
+                          className={`h-8 w-8 rounded-md flex items-center justify-center transition-colors ${
+                            cls.status === 'absent' 
+                              ? 'bg-red-600' 
+                              : 'hover:bg-red-100 dark:hover:bg-red-900'
+                          }`}
+                        >
+                          <X className={`h-4 w-4 ${
+                            cls.status === 'absent' ? 'text-white' : 'text-red-600'
+                          }`} />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))
