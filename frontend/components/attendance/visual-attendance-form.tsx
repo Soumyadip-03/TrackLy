@@ -4,8 +4,7 @@ import { useState, useEffect } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
-import { Check, X, ChevronDown } from "lucide-react"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Check, X } from "lucide-react"
 import { fetchWithAuth } from "@/lib/api"
 import { format } from "date-fns"
 import useToastNotification from "@/hooks/use-toast-notification"
@@ -20,6 +19,7 @@ interface ClassSlot {
   building?: string
   room?: string
   status?: "present" | "absent" | null
+  isInDatabase?: boolean
 }
 
 interface Holiday {
@@ -40,45 +40,11 @@ export function VisualAttendanceForm() {
 
   useEffect(() => {
     loadClassesForDate(selectedDate)
-    loadLocalAttendance()
   }, [selectedDate])
 
   useEffect(() => {
     loadHolidaysForMonth(selectedDate)
   }, [selectedDate.getMonth(), selectedDate.getFullYear()])
-
-  const getLocalStorageKey = (date: Date) => {
-    return `attendance_${format(date, 'yyyy-MM-dd')}`
-  }
-
-  const loadLocalAttendance = () => {
-    const key = getLocalStorageKey(selectedDate)
-    const stored = localStorage.getItem(key)
-    if (stored) {
-      const localData = JSON.parse(stored)
-      setClasses(prev => prev.map(cls => {
-        const localStatus = localData[cls.subjectId + '_' + cls.id]
-        // Only override if localStorage has a different value
-        return localStatus !== undefined ? { ...cls, status: localStatus } : cls
-      }))
-      if (localData.preparatory) {
-        setPreparatorySubject(localData.preparatory.subjectId)
-        setPreparatoryStatus(localData.preparatory.status)
-      }
-    }
-  }
-
-  const saveToLocalStorage = (updatedClasses: ClassSlot[], prepSubject?: string, prepStatus?: "present" | "absent" | null) => {
-    const key = getLocalStorageKey(selectedDate)
-    const data: any = {}
-    updatedClasses.forEach(cls => {
-      if (cls.status) data[cls.subjectId + '_' + cls.id] = cls.status
-    })
-    if (prepSubject && prepStatus) {
-      data.preparatory = { subjectId: prepSubject, status: prepStatus }
-    }
-    localStorage.setItem(key, JSON.stringify(data))
-  }
 
   const loadClassesForDate = async (date: Date) => {
     try {
@@ -110,36 +76,20 @@ export function VisualAttendanceForm() {
         const attendanceData = await attendanceResponse.json()
         
         const classesWithStatus = scheduledClasses.map((cls: any) => {
-          const dbAttendance = attendanceData.data?.find((a: any) => 
-            a.subject?._id === cls.subjectId && 
-            a.scheduleClassId === cls.id && 
-            !a.isPreparatory
-          )
+          const dbAttendance = attendanceData.data?.find((a: any) => {
+            const nameMatch = a.subjectName === cls.subject
+            const scheduleMatch = a.scheduleClassId === cls.id
+            const notPrep = !a.isPreparatory
+            return nameMatch && scheduleMatch && notPrep
+          })
           return {
             ...cls,
-            status: dbAttendance?.status || null
+            status: dbAttendance?.status || null,
+            isInDatabase: !!dbAttendance
           }
         })
         
         setClasses(classesWithStatus)
-        
-        // Immediately merge localStorage with DB data
-        const key = getLocalStorageKey(date)
-        const stored = localStorage.getItem(key)
-        if (stored) {
-          const localData = JSON.parse(stored)
-          const mergedClasses = classesWithStatus.map((cls: any) => {
-            const localStatus = localData[cls.subjectId + '_' + cls.id]
-            // localStorage takes priority if it exists
-            return localStatus !== undefined ? { ...cls, status: localStatus } : cls
-          })
-          setClasses(mergedClasses)
-          
-          if (localData.preparatory) {
-            setPreparatorySubject(localData.preparatory.subjectId)
-            setPreparatoryStatus(localData.preparatory.status)
-          }
-        }
       } else {
         setClasses([])
       }
@@ -170,19 +120,19 @@ export function VisualAttendanceForm() {
     
     const updatedClasses = classes.map(cls => {
       if (cls.id === classSlot.id) {
-        // Toggle if clicking same status
+        if (cls.isInDatabase) {
+          return { ...cls, status }
+        }
         return { ...cls, status: cls.status === status ? null : status }
       }
       return cls
     })
     setClasses(updatedClasses)
-    saveToLocalStorage(updatedClasses, preparatorySubject, preparatoryStatus)
   }
 
   const markAllAttendance = (status: "present" | "absent") => {
     const updatedClasses = classes.map(cls => ({ ...cls, status }))
     setClasses(updatedClasses)
-    saveToLocalStorage(updatedClasses, preparatorySubject, preparatoryStatus)
   }
 
   const markPreparatoryAttendance = (status: "present" | "absent") => {
@@ -191,7 +141,6 @@ export function VisualAttendanceForm() {
     setPreparatoryStatus(status)
     const updatedClasses = classes.filter(cls => cls.subjectId !== preparatorySubject)
     setClasses(updatedClasses)
-    saveToLocalStorage(updatedClasses, preparatorySubject, status)
   }
 
   const uploadAttendance = async () => {
@@ -293,14 +242,15 @@ export function VisualAttendanceForm() {
           'Attendance Uploaded!',
           `Successfully uploaded ${successCount} record${successCount > 1 ? 's' : ''}${errorCount > 0 ? `. ${errorCount} failed.` : ''}`
         )
-        // Don't clear localStorage - keep UI state
+        await loadClassesForDate(selectedDate)
+        setUploading(false)
       } else {
         error('Upload Failed', 'No attendance records were uploaded. Please try again.')
+        setUploading(false)
       }
     } catch (err) {
       console.error('Failed to upload attendance:', err)
       error('Upload Failed', 'An error occurred while uploading attendance.')
-    } finally {
       setUploading(false)
     }
   }
@@ -309,8 +259,8 @@ export function VisualAttendanceForm() {
   const hasHolidays = holidays.length > 0
 
   return (
-    <div className="w-full h-[calc(100vh-12rem)] overflow-hidden">
-      <div className="grid grid-cols-1 lg:grid-cols-[30%_70%] gap-6 h-full">
+    <div className="w-full h-[calc(100vh-12rem)] overflow-hidden px-6">
+      <div className="grid grid-cols-1 lg:grid-cols-[35%_65%] gap-6 h-full">
         {/* Left Column */}
         <div className="flex flex-col gap-4 h-full overflow-hidden">
           {/* Calendar Card */}
@@ -322,15 +272,13 @@ export function VisualAttendanceForm() {
               >
                 Auto-Attendance
               </Button>
-              <div className="flex-1 flex items-center justify-center w-full">
-                <div className="w-full max-w-sm mx-auto">
-                  <Calendar
-                    mode="single"
-                    selected={selectedDate}
-                    onSelect={(date) => date && setSelectedDate(date)}
-                    className="rounded-md border-0 p-0 m-0 w-full [&>div]:w-full [&_table]:w-full [&_td]:p-2 [&_th]:p-2"
-                  />
-                </div>
+              <div className="flex-1 flex items-center justify-center w-full border-2 rounded-lg p-4">
+                <Calendar
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={(date) => date && setSelectedDate(date)}
+                  className="rounded-md border-0 p-0 m-0 scale-125"
+                />
               </div>
             </CardContent>
           </Card>
