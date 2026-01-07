@@ -37,18 +37,13 @@ const AttendanceSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
-  isPreparatory: {
-    type: Boolean,
-    default: false
-  },
   hasPreparatoryTag: {
     type: Boolean,
     default: false
   },
-  linkedSubjectId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Subject',
-    default: null
+  timeDuration: {
+    startTime: { type: String, default: '' },
+    endTime: { type: String, default: '' }
   },
   calculationType: {
     type: String,

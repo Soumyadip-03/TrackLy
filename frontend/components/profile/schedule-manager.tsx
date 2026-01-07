@@ -49,6 +49,7 @@ export function ScheduleManager({ onUpdateAction }: ScheduleManagerProps = {}) {
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [currentDay, setCurrentDay] = useState("Monday");
+  const [isUploading, setIsUploading] = useState(false);
 
   const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
@@ -689,10 +690,12 @@ export function ScheduleManager({ onUpdateAction }: ScheduleManagerProps = {}) {
               <TooltipTrigger asChild>
                 <Button 
                   variant="default"
+                  disabled={isUploading}
                   onClick={async () => {
               console.log('Upload to Subjects clicked');
               console.log('Current schedule:', schedule);
               
+              setIsUploading(true);
               try {
                 const subjectMap = new Map();
                 
@@ -721,21 +724,20 @@ export function ScheduleManager({ onUpdateAction }: ScheduleManagerProps = {}) {
                 console.log('Existing subjects:', existingSubjects);
                 
                 const existingMap = new Map(
-                  existingSubjects.map(s => [`${s.name.toLowerCase()}_${s.classType}`, s])
+                  existingSubjects.map(s => [`${s.name.toLowerCase()}_${s.classType || 'none'}`, s])
                 );
                 
                 let created = 0;
                 let updated = 0;
+                let skipped = 0;
                 
                 for (const [key, data] of subjectMap) {
                   const existing = existingMap.get(key);
                   
                   if (existing) {
-                    console.log('Updating subject:', existing._id);
-                    await subjectService.update(existing._id, {
-                      classesPerWeek: data.count
-                    });
-                    updated++;
+                    // Subject with same name and classType already exists, skip
+                    console.log('Skipping duplicate:', data.name, data.classType);
+                    skipped++;
                   } else {
                     console.log('Creating new subject:', data.name, data.classType);
                     const result = await subjectService.create({
@@ -749,11 +751,13 @@ export function ScheduleManager({ onUpdateAction }: ScheduleManagerProps = {}) {
                   }
                 }
                 
-                console.log('Upload complete:', { created, updated });
+                console.log('Upload complete:', { created, skipped });
                 
                 toast({
                   title: "Uploaded to Subjects",
-                  description: `Created ${created} new, updated ${updated} existing.`
+                  description: created > 0 
+                    ? `Created ${created} new subject${created > 1 ? 's' : ''}${skipped > 0 ? `, skipped ${skipped} duplicate${skipped > 1 ? 's' : ''}` : ''}.`
+                    : `All subjects already exist. Skipped ${skipped} duplicate${skipped > 1 ? 's' : ''}.`
                 });
                 
                 await loadSubjects();
@@ -764,10 +768,12 @@ export function ScheduleManager({ onUpdateAction }: ScheduleManagerProps = {}) {
                   description: "Failed to upload subjects.",
                   variant: "destructive"
                 });
+              } finally {
+                setIsUploading(false);
               }
             }}
           >
-            <BookOpen className="mr-2 h-4 w-4" /> Upload to Subjects
+            <BookOpen className="mr-2 h-4 w-4" /> {isUploading ? "Uploading..." : "Upload to Subjects"}
           </Button>
               </TooltipTrigger>
               <TooltipContent side="top" className="max-w-xs">
