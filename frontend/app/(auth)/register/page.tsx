@@ -21,7 +21,7 @@ export default function RegisterPage() {
   const [studentId, setStudentId] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
-  const [currentSemester, setCurrentSemester] = useState<number>(1)
+  const [courseDuration, setCourseDuration] = useState<number>(3)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null)
@@ -57,7 +57,7 @@ export default function RegisterPage() {
         return
       }
 
-      await signUp(email, password, name, studentId, currentSemester)
+      await signUp(email, password, name, studentId, courseDuration)
       
       setMessage({
         text: "Account created successfully! Redirecting to login...",
@@ -147,18 +147,18 @@ export default function RegisterPage() {
             </div>
 
             <div className="space-y-0.5">
-              <Label htmlFor="currentSemester" className="text-xs">Current Semester</Label>
+              <Label htmlFor="courseDuration" className="text-xs">Course Duration</Label>
               <Select 
-                value={currentSemester.toString()} 
-                onValueChange={(value: string) => setCurrentSemester(parseInt(value))}
+                value={courseDuration.toString()} 
+                onValueChange={(value: string) => setCourseDuration(parseInt(value))}
               >
-                <SelectTrigger className="w-full h-8 text-xs" id="currentSemester">
-                  <SelectValue placeholder="Select Semester" />
+                <SelectTrigger className="w-full h-8 text-xs" id="courseDuration">
+                  <SelectValue placeholder="Select Duration" />
                 </SelectTrigger>
                 <SelectContent>
-                  {[1, 2, 3, 4, 5, 6, 7, 8].map((semester) => (
-                    <SelectItem key={semester} value={semester.toString()}>
-                      Semester {semester}
+                  {[1, 2, 3, 4, 5].map((year) => (
+                    <SelectItem key={year} value={year.toString()}>
+                      {year} Year{year > 1 ? 's' : ''}
                     </SelectItem>
                   ))}
                 </SelectContent>

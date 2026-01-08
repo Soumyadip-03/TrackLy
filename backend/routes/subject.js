@@ -2,33 +2,20 @@ const express = require('express');
 const router = express.Router();
 const { body, validationResult } = require('express-validator');
 const Subject = require('../models/Subject');
+const Attendance = require('../models/Attendance');
 const AcademicPeriod = require('../models/AcademicPeriod');
 const User = require('../models/User');
 const { protect } = require('../middleware/auth');
 
-// @desc    Get all subjects for current academic period
+// @desc    Get all subjects for current semester
 // @route   GET /api/subject
 // @access  Private
 router.get('/', protect, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
-    const academicPeriod = await AcademicPeriod.findOne({ 
-      userId: req.user._id, 
-      semester: String(user.currentSemester)
-    });
-
-    let subjects;
-    if (academicPeriod) {
-      subjects = await Subject.find({ 
-        user: req.user._id,
-        academicPeriodId: academicPeriod._id
-      }).sort({ name: 1 });
-    } else {
-      subjects = await Subject.find({ 
-        user: req.user._id,
-        semester: user.currentSemester
-      }).sort({ name: 1 });
-    }
+    const subjects = await Subject.find({ 
+      user: req.user._id,
+      semester: req.user.currentSemester
+    }).sort({ name: 1 });
 
     res.status(200).json({
       success: true,
@@ -95,7 +82,7 @@ router.get('/:id', protect, async (req, res) => {
   }
 });
 
-// @desc    Create new subject for current academic period
+// @desc    Create new subject for current semester
 // @route   POST /api/subject
 // @access  Private
 router.post(
@@ -111,11 +98,10 @@ router.post(
     }
 
     try {
-      const { name, code, classType, semester, schedule, classesPerWeek } = req.body;
-      const user = await User.findById(req.user._id);
+      const { name, code, classType, schedule, classesPerWeek } = req.body;
       const academicPeriod = await AcademicPeriod.findOne({ 
         userId: req.user._id, 
-        semester: String(user.currentSemester)
+        semester: String(req.user.currentSemester)
       });
 
       const subject = await Subject.create({
@@ -124,7 +110,7 @@ router.post(
         name,
         code: code || '',
         classType: classType || 'none',
-        semester: semester || user.currentSemester,
+        semester: req.user.currentSemester,
         schedule: schedule || [],
         classesPerWeek: classesPerWeek || 0
       });
@@ -210,23 +196,30 @@ router.delete('/:id', protect, async (req, res) => {
   }
 });
 
-// @desc    Delete all subjects for current academic period
+// @desc    Delete all subjects and their attendance for current semester
 // @route   DELETE /api/subject/clear/all
 // @access  Private
 router.delete('/clear/all', protect, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
-    const academicPeriod = await AcademicPeriod.findOne({ 
-      userId: req.user._id, 
-      semester: user.currentSemester 
+    // Get all subject IDs for current semester
+    const subjects = await Subject.find({ 
+      user: req.user._id,
+      semester: req.user.currentSemester
+    }).select('_id');
+
+    const subjectIds = subjects.map(s => s._id);
+
+    // Delete all attendance records for these subjects
+    await Attendance.deleteMany({ 
+      user: req.user._id,
+      subject: { $in: subjectIds }
     });
 
-    if (academicPeriod) {
-      await Subject.deleteMany({ 
-        user: req.user._id,
-        academicPeriodId: academicPeriod._id
-      });
-    }
+    // Delete all subjects
+    await Subject.deleteMany({ 
+      user: req.user._id,
+      semester: req.user.currentSemester
+    });
 
     res.status(200).json({
       success: true,

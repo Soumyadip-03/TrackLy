@@ -578,8 +578,8 @@ export function ScheduleManager({ onUpdateAction }: ScheduleManagerProps = {}) {
                                     <SelectValue placeholder="Select subject" />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    {subjects.map(subject => (
-                                      <SelectItem key={subject.name} value={subject.name}>
+                                    {subjects.map((subject, index) => (
+                                      <SelectItem key={`${subject.name}-${subject.classType}-${index}`} value={subject.name}>
                                         {subject.name}
                                       </SelectItem>
                                     ))}
@@ -697,6 +697,20 @@ export function ScheduleManager({ onUpdateAction }: ScheduleManagerProps = {}) {
               
               setIsUploading(true);
               try {
+                const existingSubjects = await subjectService.getAll();
+                console.log('Existing subjects:', existingSubjects);
+                
+                // If no subjects exist, create Preparatory subject first
+                if (existingSubjects.length === 0) {
+                  console.log('No subjects found, creating Preparatory subject');
+                  await subjectService.create({
+                    name: 'Preparatory',
+                    code: 'BUPRP',
+                    classType: 'preparatory',
+                    classesPerWeek: 0
+                  });
+                }
+                
                 const subjectMap = new Map();
                 
                 schedule.classes.forEach(cls => {
@@ -720,11 +734,11 @@ export function ScheduleManager({ onUpdateAction }: ScheduleManagerProps = {}) {
                 
                 console.log('Subject map created:', subjectMap);
                 
-                const existingSubjects = await subjectService.getAll();
-                console.log('Existing subjects:', existingSubjects);
+                // Reload subjects after creating Preparatory
+                const updatedExistingSubjects = await subjectService.getAll();
                 
                 const existingMap = new Map(
-                  existingSubjects.map(s => [`${s.name.toLowerCase()}_${s.classType || 'none'}`, s])
+                  updatedExistingSubjects.map(s => [`${s.name.toLowerCase()}_${s.classType || 'none'}`, s])
                 );
                 
                 let created = 0;
@@ -753,10 +767,39 @@ export function ScheduleManager({ onUpdateAction }: ScheduleManagerProps = {}) {
                 
                 console.log('Upload complete:', { created, skipped });
                 
+                // Update schedule with new subject IDs
+                const allSubjects = await subjectService.getAll();
+                const subjectIdMap = new Map(
+                  allSubjects.map(s => [`${s.name.toLowerCase()}_${s.classType || 'none'}`, s._id || s.id])
+                );
+                
+                let scheduleUpdated = false;
+                const updatedClasses = schedule.classes.map(cls => {
+                  if (cls.classType === "break") return cls;
+                  
+                  const key = `${cls.subject.toLowerCase()}_${cls.classType || 'none'}`;
+                  const newSubjectId = subjectIdMap.get(key);
+                  
+                  if (newSubjectId && cls.subjectId !== newSubjectId) {
+                    console.log(`Updating ${cls.subject} subjectId: ${cls.subjectId} -> ${newSubjectId}`);
+                    scheduleUpdated = true;
+                    return { ...cls, subjectId: newSubjectId };
+                  }
+                  
+                  return cls;
+                });
+                
+                if (scheduleUpdated) {
+                  const updatedSchedule = { ...schedule, classes: updatedClasses };
+                  setSchedule(updatedSchedule);
+                  await saveScheduleToDB(updatedSchedule);
+                  console.log('Schedule updated with new subject IDs');
+                }
+                
                 toast({
                   title: "Uploaded to Subjects",
                   description: created > 0 
-                    ? `Created ${created} new subject${created > 1 ? 's' : ''}${skipped > 0 ? `, skipped ${skipped} duplicate${skipped > 1 ? 's' : ''}` : ''}.`
+                    ? `Created ${created} new subject${created > 1 ? 's' : ''}${skipped > 0 ? `, skipped ${skipped} duplicate${skipped > 1 ? 's' : ''}` : ''}.${scheduleUpdated ? ' Schedule updated.' : ''}`
                     : `All subjects already exist. Skipped ${skipped} duplicate${skipped > 1 ? 's' : ''}.`
                 });
                 

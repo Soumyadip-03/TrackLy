@@ -22,7 +22,7 @@ router.post(
     body('email', 'Please include a valid email').isEmail(),
     body('password', 'Please enter a password with 6 or more characters').isLength({ min: 6 }),
     body('studentId', 'Student ID is required').not().isEmpty(),
-    body('currentSemester', 'Current semester is required').isNumeric()
+    body('courseDuration', 'Course duration is required').isNumeric()
   ],
   async (req, res) => {
     // Check for validation errors
@@ -31,7 +31,7 @@ router.post(
       return res.status(400).json({ success: false, errors: errors.array() });
     }
 
-    const { name, email, password, studentId, currentSemester } = req.body;
+    const { name, email, password, studentId, courseDuration, currentSemester } = req.body;
 
     try {
       // Check if user exists
@@ -50,7 +50,8 @@ router.post(
         email,
         password,
         studentId,
-        currentSemester
+        courseDuration,
+        currentSemester: currentSemester || 1
       });
 
       await user.save();
@@ -87,7 +88,8 @@ router.post(
           email: email,
           name: name,
           studentId: studentId,
-          currentSemester: currentSemester,
+          courseDuration: courseDuration,
+          currentSemester: currentSemester || 1,
           ipAddress: ipAddress,
           device: deviceInfo.os,
           browser: deviceInfo.browser
@@ -119,7 +121,8 @@ router.post(
           <ul>
             <li><strong>Email:</strong> ${email}</li>
             <li><strong>Student ID:</strong> ${studentId}</li>
-            <li><strong>Current Semester:</strong> ${currentSemester}</li>
+            <li><strong>Course Duration:</strong> ${courseDuration} Year${courseDuration > 1 ? 's' : ''}</li>
+            <li><strong>Current Semester:</strong> ${currentSemester || 1}</li>
             <li><strong>Account Created:</strong> ${new Date().toLocaleString()}</li>
           </ul>
           <br>
@@ -154,7 +157,7 @@ router.post(
         await AcademicPeriod.create({
           userId: user._id,
           userName: name,
-          semester: currentSemester.toString(),
+          semester: (currentSemester || 1).toString(),
           startDate: new Date(), // Placeholder - user will set actual dates
           endDate: new Date() // Placeholder - user will set actual dates
         });

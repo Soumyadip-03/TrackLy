@@ -78,7 +78,10 @@ const SubjectSchema = new mongoose.Schema({
   },
   classesPerWeek: {
     type: Number,
-    default: 0
+    default: function() {
+      // Preparatory subject doesn't track classesPerWeek
+      return this.classType === 'preparatory' ? undefined : 0;
+    }
   },
   user: {
     type: mongoose.Schema.Types.ObjectId,

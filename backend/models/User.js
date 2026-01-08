@@ -35,6 +35,13 @@ const UserSchema = new mongoose.Schema({
     required: [true, 'Please provide current semester number'],
     min: 1
   },
+  courseDuration: {
+    type: Number,
+    required: false,
+    min: 1,
+    max: 5,
+    default: 4
+  },
   profilePicture: {
     type: String,
     default: null
@@ -102,6 +109,10 @@ const UserSchema = new mongoose.Schema({
       type: String,
       default: '75'
     }
+  },
+  autoAttendanceEnabled: {
+    type: Boolean,
+    default: false
   },
   lastAttendanceUpdate: {
     type: Date,

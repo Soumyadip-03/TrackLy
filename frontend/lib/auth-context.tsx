@@ -40,7 +40,7 @@ export type AuthContextType = {
   connectionError: string | null
   isOfflineMode: boolean
   signIn: (email: string, password: string) => Promise<any>
-  signUp: (email: string, password: string, name?: string, studentId?: string, currentSemester?: number) => Promise<any>
+  signUp: (email: string, password: string, name?: string, studentId?: string, courseDuration?: number) => Promise<any>
   signOut: () => Promise<void>
   checkConnection: () => Promise<boolean>
   enableOfflineMode: () => void
@@ -230,7 +230,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [])
 
-  const signUp = async (email: string, password: string, name?: string, studentId?: string, currentSemester?: number) => {
+  const signUp = async (email: string, password: string, name?: string, studentId?: string, courseDuration?: number) => {
     try {
       setIsLoading(true)
       const response = await fetch(`${API_URL}/auth/register`, {
@@ -241,7 +241,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           password,
           name: name || email.split('@')[0],
           studentId: studentId || 'STU' + Date.now(),
-          currentSemester: currentSemester || 1
+          courseDuration: courseDuration || 4,
+          currentSemester: 1
         })
       })
       
@@ -257,7 +258,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           email,
           name: name || email.split('@')[0],
           studentId: studentId || 'STU' + Date.now(),
-          currentSemester: currentSemester || 1
+          courseDuration: courseDuration || 4,
+          currentSemester: 1
         }
         persistSession(data.token, userData)
         setUser(userData)

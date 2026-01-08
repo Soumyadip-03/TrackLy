@@ -23,11 +23,14 @@ export function AcademicPeriodSelector() {
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [currentSemester, setCurrentSemester] = useState<string>("1");
   const [userBaseSemester, setUserBaseSemester] = useState<number>(1);
+  const [maxSemester, setMaxSemester] = useState<number>(8);
   const [isPeriodSaved, setIsPeriodSaved] = useState<boolean>(false);
   const [refreshKey, setRefreshKey] = useState(0);
   
   useEffect(() => {
     if (user) {
+      const courseDuration = user?.courseDuration || 4;
+      setMaxSemester(courseDuration * 2);
       loadAcademicPeriod();
     }
   }, [user]);
@@ -223,7 +226,7 @@ export function AcademicPeriodSelector() {
                   <SelectValue placeholder="Select Semester" />
                 </SelectTrigger>
                 <SelectContent>
-                  {[1, 2, 3, 4, 5, 6, 7, 8]
+                  {Array.from({ length: maxSemester }, (_, i) => i + 1)
                     .filter(sem => sem >= (user?.currentSemester || 1))
                     .map(sem => (
                       <SelectItem key={sem} value={sem.toString()}>

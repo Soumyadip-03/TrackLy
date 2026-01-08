@@ -4,10 +4,22 @@ import { useState, useEffect } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
-import { Check, X } from "lucide-react"
+import { Check, X, Power, Loader2 } from "lucide-react"
 import { fetchWithAuth } from "@/lib/api"
 import { format } from "date-fns"
 import useToastNotification from "@/hooks/use-toast-notification"
+import { useAutoAttendance } from "@/hooks/use-auto-attendance"
+import { toast } from "@/components/ui/use-toast"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 interface ClassSlot {
   id: string
@@ -37,6 +49,10 @@ export function VisualAttendanceForm() {
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
   const { success, error } = useToastNotification()
+  const { isEnabled, isLoading: autoLoading, toggleAutoAttendance } = useAutoAttendance()
+  const [isToggling, setIsToggling] = useState(false)
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false)
+  const [pendingState, setPendingState] = useState(false)
 
   useEffect(() => {
     loadClassesForDate(selectedDate)
@@ -205,7 +221,9 @@ export function VisualAttendanceForm() {
                 status: cls.status,
                 classType: cls.classType,
                 scheduleClassId: cls.id,
-                hasPreparatoryTag: cls.hasPreparatoryTag || false
+                hasPreparatoryTag: cls.hasPreparatoryTag || false,
+                startTime: cls.startTime,
+                endTime: cls.endTime
               })
             })
             
@@ -241,11 +259,89 @@ export function VisualAttendanceForm() {
     }
   }
 
+  const handleAutoAttendanceToggle = () => {
+    setPendingState(!isEnabled)
+    setShowConfirmDialog(true)
+  }
+
+  const handleConfirmToggle = async () => {
+    setShowConfirmDialog(false)
+    setIsToggling(true)
+
+    const success = await toggleAutoAttendance(pendingState)
+
+    if (success) {
+      if (pendingState) {
+        toast({
+          title: "Auto-Attendance Enabled",
+          description: "System will automatically mark all past classes from schedule start date to today as present. Future classes will be marked hourly and uploaded at 11:59 PM.",
+        })
+      } else {
+        toast({
+          title: "Auto-Attendance Disabled",
+          description: "Automatic attendance marking has been turned off. Any pending records have been uploaded.",
+        })
+      }
+      // Reload classes to show any auto-marked attendance
+      await loadClassesForDate(selectedDate)
+    } else {
+      toast({
+        title: "Error",
+        description: "Failed to toggle auto-attendance. Please try again.",
+        variant: "destructive",
+      })
+    }
+
+    setIsToggling(false)
+  }
+
   const monthName = format(selectedDate, 'MMMM')
   const hasHolidays = holidays.length > 0
 
   return (
     <div className="w-full h-[calc(100vh-12rem)] overflow-hidden px-6">
+      <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingState ? 'Enable Auto-Attendance?' : 'Disable Auto-Attendance?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              {pendingState ? (
+                <div>
+                  When enabled, the system will:
+                  <ul className="list-disc list-inside mt-2 space-y-1">
+                    <li>Automatically mark ALL past classes as "present" from schedule start date to today</li>
+                    <li>Mark classes as "present" every hour after they end</li>
+                    <li>Upload all attendance to database at 11:59 PM</li>
+                    <li>Skip holidays and off days automatically</li>
+                    <li>You can still manually edit attendance anytime</li>
+                  </ul>
+                </div>
+              ) : (
+                <div>
+                  When disabled:
+                  <ul className="list-disc list-inside mt-2 space-y-1">
+                    <li>Automatic marking will stop</li>
+                    <li>Any pending records will be uploaded immediately</li>
+                    <li>You'll need to mark attendance manually</li>
+                  </ul>
+                </div>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmToggle}
+              className={pendingState ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}
+            >
+              {pendingState ? 'Enable' : 'Disable'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      
       <div className="grid grid-cols-1 lg:grid-cols-[35%_65%] gap-6 h-full">
         {/* Left Column */}
         <div className="flex flex-col gap-4 h-full overflow-hidden">
@@ -253,10 +349,26 @@ export function VisualAttendanceForm() {
           <Card className="flex-1 overflow-hidden">
             <CardContent className="p-3 flex flex-col h-full">
               <Button 
+                onClick={handleAutoAttendanceToggle}
+                disabled={isToggling || autoLoading}
                 variant="outline" 
-                className="mb-2 w-full h-9 rounded-lg border-2 font-semibold hover:bg-primary hover:text-primary-foreground text-xs"
+                className={`mb-2 w-full h-9 rounded-lg border-2 font-semibold transition-all duration-300 text-xs ${
+                  isEnabled 
+                    ? 'bg-green-500 hover:bg-green-600 text-white border-green-600' 
+                    : 'bg-red-500 hover:bg-red-600 text-white border-red-600'
+                } ${(isToggling || autoLoading) ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
-                Auto-Attendance
+                {isToggling || autoLoading ? (
+                  <>
+                    <Loader2 className="h-3 w-3 animate-spin mr-2" />
+                    {autoLoading ? 'Loading...' : 'Processing...'}
+                  </>
+                ) : (
+                  <>
+                    <Power className="h-3 w-3 mr-2" />
+                    Auto-Attendance {isEnabled ? 'ON' : 'OFF'}
+                  </>
+                )}
               </Button>
               <div className="flex-1 flex items-center justify-center w-full border-2 rounded-lg p-4">
                 <Calendar

@@ -284,6 +284,16 @@ export function PersonalInfoForm({ onUpdateAction }: PersonalInfoFormProps = {})
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="courseDuration" className="text-sm">Course Duration</Label>
+              <Input 
+                id="courseDuration" 
+                value={`${(user as any)?.courseDuration || 4} Year${((user as any)?.courseDuration || 4) > 1 ? 's' : ''}`} 
+                disabled 
+                className="bg-muted/50 cursor-not-allowed h-9"
+              />
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="currentSemester" className="text-sm">Current Semester</Label>
               <Input 
                 id="currentSemester" 
