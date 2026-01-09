@@ -172,18 +172,91 @@ export function useAutoAttendance() {
   }
 
   // Schedule end of day upload (11:59 PM)
-  const scheduleEndOfDayUpload = () => {
+  const scheduleEndOfDayUpload = async () => {
     const now = new Date()
     const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 0)
     const timeUntilEndOfDay = endOfDay.getTime() - now.getTime()
 
     if (timeUntilEndOfDay > 0) {
       setTimeout(async () => {
+        // Auto-mark all unmarked classes for today as present
+        await autoMarkUnmarkedClasses()
+        
+        // Then upload all pending records
         const pending = getFromLocalStorage<PendingAttendance[]>('autoAttendance_pending', [])
         if (pending.length > 0) {
           await uploadBulkAttendance(pending)
         }
       }, timeUntilEndOfDay)
+    }
+  }
+
+  // Auto-mark unmarked classes as present at end of day
+  const autoMarkUnmarkedClasses = async () => {
+    try {
+      const scheduleResponse = await fetchWithAuth('/schedule')
+      const scheduleData = await scheduleResponse.json()
+      const schedule = scheduleData.data
+      
+      if (!schedule || !schedule.classes || schedule.classes.length === 0) {
+        return
+      }
+
+      const now = new Date()
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+      const todayDay = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][now.getDay()]
+
+      // Get today's classes
+      const todaysClasses = (schedule.classes as ScheduleClass[]).filter(cls => cls.day === todayDay)
+
+      const newPendingRecords: PendingAttendance[] = []
+
+      for (const cls of todaysClasses) {
+        // Check if already in pending records
+        const alreadyPending = pendingRecords.some(
+          r => r.subjectId === cls.subjectId && r.date === today.toISOString() && r.scheduleClassId === cls.id
+        )
+
+        if (alreadyPending) continue // User already marked this class
+
+        // Check if already in database
+        try {
+          const historyResponse = await fetchWithAuth('/attendance/history')
+          const historyData = await historyResponse.json()
+          const existsInDb = historyData.data.some(
+            (att: any) => 
+              att.subject._id === cls.subjectId && 
+              new Date(att.date).toDateString() === today.toDateString() &&
+              att.scheduleClassId === cls.id
+          )
+
+          if (existsInDb) continue // Already uploaded
+        } catch (error) {
+          console.error('Error checking attendance history:', error)
+        }
+
+        // Auto-mark as present (unmarked class)
+        newPendingRecords.push({
+          subjectId: cls.subjectId,
+          subjectName: cls.subject,
+          date: today.toISOString(),
+          status: 'present',
+          classType: cls.classType || 'none',
+          scheduleClassId: cls.id || '',
+          hasPreparatoryTag: false,
+          startTime: cls.startTime,
+          endTime: cls.endTime
+        })
+      }
+
+      if (newPendingRecords.length > 0) {
+        const updated = [...pendingRecords, ...newPendingRecords]
+        setPendingRecords(updated)
+        saveToLocalStorage('autoAttendance_pending', updated)
+        console.log(`Auto-marked ${newPendingRecords.length} unmarked classes as present`)
+      }
+    } catch (error) {
+      console.error('Error auto-marking unmarked classes:', error)
     }
   }
 

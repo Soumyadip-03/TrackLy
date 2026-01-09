@@ -11,6 +11,14 @@ const scheduleSchema = new mongoose.Schema({
     ref: 'AcademicPeriod',
     required: false
   },
+  startDate: {
+    type: Date,
+    required: false
+  },
+  endDate: {
+    type: Date,
+    required: false
+  },
   userName: {
     type: String,
     required: true

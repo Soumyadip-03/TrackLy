@@ -3,94 +3,115 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { CheckCircle2, XCircle, Calendar } from "lucide-react"
-import { getFromLocalStorage } from "@/lib/storage-utils"
 import { format, parseISO } from "date-fns"
+import { fetchWithAuth } from "@/lib/api"
+import { toast } from "@/components/ui/use-toast"
 
 interface AttendanceRecord {
-  id: string;
-  date: string; // ISO date string
-  subject: string;
-  status: "present" | "absent";
+  _id: string
+  date: string
+  subjectName: string
+  status: "present" | "absent"
+  subject: {
+    _id: string
+    name: string
+  }
 }
 
 interface ProcessedLog {
-  date: string; // Formatted date
-  rawDate: Date; // For sorting
-  status: "present" | "partial" | "absent";
+  date: string
+  rawDate: Date
+  status: "present" | "partial" | "absent"
   subjects: {
-    name: string;
-    status: "present" | "absent";
-  }[];
+    name: string
+    status: "present" | "absent"
+  }[]
 }
 
 export function AttendanceLogs() {
-  const [logs, setLogs] = useState<ProcessedLog[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [logs, setLogs] = useState<ProcessedLog[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    // Load attendance records from localStorage
-    const records = getFromLocalStorage<AttendanceRecord[]>('attendance_records', []);
-    
-    if (records.length === 0) {
-      setIsLoading(false);
-      return;
+    loadAttendanceLogs()
+  }, [])
+
+  const loadAttendanceLogs = async () => {
+    try {
+      setIsLoading(true)
+      
+      // Fetch attendance from database
+      const response = await fetchWithAuth('/attendance/history')
+      const data = await response.json()
+      const records: AttendanceRecord[] = data.data || []
+      
+      if (records.length === 0) {
+        setIsLoading(false)
+        return
+      }
+      
+      // Group records by date
+      const groupedByDate = records.reduce<Record<string, AttendanceRecord[]>>((acc, record) => {
+        const datePart = record.date.split('T')[0]
+        
+        if (!acc[datePart]) {
+          acc[datePart] = []
+        }
+        
+        acc[datePart].push(record)
+        return acc
+      }, {})
+      
+      // Convert to logs format
+      const processedLogs: ProcessedLog[] = Object.entries(groupedByDate).map(([dateKey, dayRecords]) => {
+        const presentCount = dayRecords.filter(r => r.status === "present").length
+        const totalCount = dayRecords.length
+        
+        let status: "present" | "partial" | "absent"
+        
+        if (presentCount === totalCount) {
+          status = "present"
+        } else if (presentCount === 0) {
+          status = "absent"
+        } else {
+          status = "partial"
+        }
+        
+        const subjectStatuses = dayRecords.reduce<Record<string, string>>((acc, record) => {
+          acc[record.subjectName] = record.status
+          return acc
+        }, {})
+        
+        const subjects = Object.entries(subjectStatuses).map(([name, status]) => ({
+          name,
+          status: status as "present" | "absent"
+        }))
+        
+        const rawDate = parseISO(dateKey)
+        
+        return {
+          date: format(rawDate, "MMM d, yyyy"),
+          rawDate,
+          status,
+          subjects
+        }
+      })
+      
+      // Sort by date, newest first
+      processedLogs.sort((a, b) => b.rawDate.getTime() - a.rawDate.getTime())
+      
+      setLogs(processedLogs)
+    } catch (error) {
+      console.error("Error loading attendance logs:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load attendance logs",
+        variant: "destructive"
+      })
+    } finally {
+      setIsLoading(false)
     }
-    
-    // Process and group records by date
-    const groupedByDate = records.reduce<Record<string, AttendanceRecord[]>>((acc, record) => {
-      // Extract just the date part to group by day
-      const datePart = record.date.split('T')[0];
-      
-      if (!acc[datePart]) {
-        acc[datePart] = [];
-      }
-      
-      acc[datePart].push(record);
-      return acc;
-    }, {});
-    
-    // Convert grouped records into logs format
-    const processedLogs: ProcessedLog[] = Object.entries(groupedByDate).map(([dateKey, dayRecords]) => {
-      const presentCount = dayRecords.filter(r => r.status === "present").length;
-      const totalCount = dayRecords.length;
-      
-      let status: "present" | "partial" | "absent";
-      
-      if (presentCount === totalCount) {
-        status = "present";
-      } else if (presentCount === 0) {
-        status = "absent";
-      } else {
-        status = "partial";
-      }
-      
-      // Group by subject for the day
-      const subjectStatuses = dayRecords.reduce<Record<string, string>>((acc, record) => {
-        acc[record.subject] = record.status;
-        return acc;
-      }, {});
-      
-      const subjects = Object.entries(subjectStatuses).map(([name, status]) => ({
-        name,
-        status: status as "present" | "absent"
-      }));
-      
-      const rawDate = parseISO(dateKey);
-      
-      return {
-        date: format(rawDate, "MMM d, yyyy"),
-        rawDate,
-        status,
-        subjects
-      };
-    });
-    
-    // Sort by date, newest first
-    processedLogs.sort((a, b) => b.rawDate.getTime() - a.rawDate.getTime());
-    
-    setLogs(processedLogs);
-    setIsLoading(false);
-  }, []);
+  }
 
   return (
     <Card>

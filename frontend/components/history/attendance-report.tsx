@@ -15,7 +15,6 @@ import {
   YAxis,
 } from "recharts"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { getFromLocalStorage } from "@/lib/storage-utils"
 import {
   startOfWeek,
   endOfWeek,
@@ -30,225 +29,212 @@ import {
   formatISO,
 } from "date-fns"
 import { AlertCircle } from "lucide-react"
-import { generateAutoPresentRecords, isHoliday, isOffDay } from "@/lib/attendance-utils"
+import { fetchWithAuth } from "@/lib/api"
+import { subjectService } from "@/lib/services/subject-service"
+import { toast } from "@/components/ui/use-toast"
 
 interface AttendanceRecord {
-  id: string;
-  date: string;
-  subject: string;
-  status: "present" | "absent";
+  _id: string
+  date: string
+  subjectName: string
+  status: "present" | "absent"
+  subject: {
+    _id: string
+    name: string
+  }
 }
 
 interface Subject {
-  id: string;
-  name: string;
-  code: string;
+  _id: string
+  name: string
+  code: string
 }
 
 interface WeeklyData {
-  name: string;
-  attendance: number;
-  weekStart: string; // For sorting
+  name: string
+  attendance: number
+  weekStart: string
 }
 
 interface MonthlyData {
-  name: string;
-  attendance: number;
-  monthStart: string; // For sorting
+  name: string
+  attendance: number
+  monthStart: string
 }
 
 interface SubjectData {
-  [key: string]: any; // Dynamic keys for subject names
+  [key: string]: any
 }
 
-export function AttendanceTrends() {
-  const [weeklyData, setWeeklyData] = useState<WeeklyData[]>([]);
-  const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([]);
-  const [subjectData, setSubjectData] = useState<SubjectData[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [hasData, setHasData] = useState(false);
+export function AttendanceReport() {
+  const [weeklyData, setWeeklyData] = useState<WeeklyData[]>([])
+  const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([])
+  const [subjectData, setSubjectData] = useState<SubjectData[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [hasData, setHasData] = useState(false)
 
   useEffect(() => {
-    // Load attendance records from localStorage with auto-present for past days
-    const subjects = getFromLocalStorage<Subject[]>('subjects', []);
-    
-    // Get records with auto-present for past days
-    const allRecords = generateAutoPresentRecords();
-    
-    if (allRecords.length === 0) {
-      setIsLoading(false);
-      return;
-    }
-    
-    // Set hasData flag
-    setHasData(true);
-    
+    loadAttendanceData()
+  }, [])
+
+  const loadAttendanceData = async () => {
     try {
-      // Convert string dates to Date objects
+      setIsLoading(true)
+      
+      // Fetch attendance from database
+      const attResponse = await fetchWithAuth('/attendance/history')
+      const attData = await attResponse.json()
+      const allRecords: AttendanceRecord[] = attData.data || []
+      
+      if (allRecords.length === 0) {
+        setHasData(false)
+        setIsLoading(false)
+        return
+      }
+      
+      setHasData(true)
+      
+      // Fetch subjects from database
+      const subjects = await subjectService.getAll()
+      
+      // Convert dates and sort
       const recordsWithDates = allRecords.map(record => ({
         ...record,
         dateObj: parseISO(record.date)
-      }));
+      })).sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime())
       
-      // Filter out records for holidays and off days
-      const filteredRecords = recordsWithDates.filter(record => {
-        // Skip records for holidays or off days
-        return !isHoliday(record.date) && !isOffDay(record.date);
-      }).sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
-      
-      // Only proceed if we have filtered records
-      if (filteredRecords.length === 0) {
-        setIsLoading(false);
-        setHasData(false);
-        return;
+      if (recordsWithDates.length === 0) {
+        setHasData(false)
+        setIsLoading(false)
+        return
       }
       
-      // Get date range for calculations
-      const oldestDate = filteredRecords[0].dateObj;
-      const now = new Date();
+      const oldestDate = recordsWithDates[0].dateObj
+      const now = new Date()
       
-      // Calculate weekly attendance data
-      const weeklyAttendance = calculateWeeklyAttendance(filteredRecords, oldestDate, now);
-      setWeeklyData(weeklyAttendance);
+      // Calculate charts data
+      const weeklyAttendance = calculateWeeklyAttendance(recordsWithDates, oldestDate, now)
+      setWeeklyData(weeklyAttendance)
       
-      // Calculate monthly attendance data
-      const monthlyAttendance = calculateMonthlyAttendance(filteredRecords, oldestDate, now);
-      setMonthlyData(monthlyAttendance);
+      const monthlyAttendance = calculateMonthlyAttendance(recordsWithDates, oldestDate, now)
+      setMonthlyData(monthlyAttendance)
       
-      // Calculate subject-wise attendance data
-      const subjectAttendance = calculateSubjectAttendance(filteredRecords, subjects);
-      setSubjectData(subjectAttendance);
+      const subjectAttendance = calculateSubjectAttendance(recordsWithDates, subjects)
+      setSubjectData(subjectAttendance)
       
     } catch (error) {
-      console.error("Error processing attendance data:", error);
+      console.error("Error loading attendance data:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load attendance data",
+        variant: "destructive"
+      })
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  }, []);
+  }
   
   const calculateWeeklyAttendance = (
     records: (AttendanceRecord & { dateObj: Date })[], 
     startDate: Date, 
     endDate: Date
   ): WeeklyData[] => {
-    // Get all weeks in the interval, limited to last 12 weeks
-    let weeks = eachWeekOfInterval({ start: startDate, end: endDate }, { weekStartsOn: 1 });
+    let weeks = eachWeekOfInterval({ start: startDate, end: endDate }, { weekStartsOn: 1 })
     
-    // Limit to last 12 weeks at most
     if (weeks.length > 12) {
-      weeks = weeks.slice(-12);
+      weeks = weeks.slice(-12)
     }
     
     return weeks.map(weekStart => {
-      const weekEnd = endOfWeek(weekStart, { weekStartsOn: 1 });
+      const weekEnd = endOfWeek(weekStart, { weekStartsOn: 1 })
       
-      // Filter records for this week
       const weekRecords = records.filter(record => 
         isWithinInterval(record.dateObj, { start: weekStart, end: weekEnd })
-      );
+      )
       
-      // Calculate attendance percentage
-      const totalRecords = weekRecords.length;
-      const presentRecords = weekRecords.filter(record => record.status === "present").length;
-      const attendancePercentage = totalRecords > 0 ? Math.round((presentRecords / totalRecords) * 100) : 0;
+      const totalRecords = weekRecords.length
+      const presentRecords = weekRecords.filter(record => record.status === "present").length
+      const attendancePercentage = totalRecords > 0 ? Math.round((presentRecords / totalRecords) * 100) : 0
       
       return {
         name: `Week ${format(weekStart, "M/d")}`,
         attendance: attendancePercentage,
         weekStart: formatISO(weekStart)
-      };
+      }
     }).filter(week => week.attendance > 0 || records.some(r => 
       isWithinInterval(r.dateObj, { 
         start: parseISO(week.weekStart), 
         end: endOfWeek(parseISO(week.weekStart), { weekStartsOn: 1 }) 
       })
-    ));
-  };
+    ))
+  }
   
   const calculateMonthlyAttendance = (
     records: (AttendanceRecord & { dateObj: Date })[], 
     startDate: Date, 
     endDate: Date
   ): MonthlyData[] => {
-    // Get all months in the interval, limited to last 6 months
-    const sixMonthsAgo = subMonths(endDate, 6);
-    const startMonth = startDate < sixMonthsAgo ? sixMonthsAgo : startDate;
-    const months = eachMonthOfInterval({ start: startMonth, end: endDate });
+    const sixMonthsAgo = subMonths(endDate, 6)
+    const startMonth = startDate < sixMonthsAgo ? sixMonthsAgo : startDate
+    const months = eachMonthOfInterval({ start: startMonth, end: endDate })
     
     return months.map(monthStart => {
-      const monthEnd = endOfMonth(monthStart);
+      const monthEnd = endOfMonth(monthStart)
       
-      // Filter records for this month
       const monthRecords = records.filter(record => 
         isWithinInterval(record.dateObj, { start: monthStart, end: monthEnd })
-      );
+      )
       
-      // Calculate attendance percentage
-      const totalRecords = monthRecords.length;
-      const presentRecords = monthRecords.filter(record => record.status === "present").length;
-      const attendancePercentage = totalRecords > 0 ? Math.round((presentRecords / totalRecords) * 100) : 0;
+      const totalRecords = monthRecords.length
+      const presentRecords = monthRecords.filter(record => record.status === "present").length
+      const attendancePercentage = totalRecords > 0 ? Math.round((presentRecords / totalRecords) * 100) : 0
       
       return {
         name: format(monthStart, "MMM"),
         attendance: attendancePercentage,
         monthStart: formatISO(monthStart)
-      };
-    }).filter(month => month.attendance > 0);
-  };
+      }
+    }).filter(month => month.attendance > 0)
+  }
   
   const calculateSubjectAttendance = (
     records: (AttendanceRecord & { dateObj: Date })[], 
     subjects: Subject[]
   ): SubjectData[] => {
-    // Get all weeks for which we have attendance data
     const weeks = Array.from(new Set(
       records.map(record => {
-        const weekStart = startOfWeek(record.dateObj, { weekStartsOn: 1 });
-        return format(weekStart, "yyyy-MM-dd");
+        const weekStart = startOfWeek(record.dateObj, { weekStartsOn: 1 })
+        return format(weekStart, "yyyy-MM-dd")
       })
-    )).sort();
+    )).sort()
     
-    // Create a map of subject ID to name for easy lookup
-    const subjectMap: Record<string, string> = {};
-    subjects.forEach(subject => {
-      subjectMap[subject.name] = subject.name;
-    });
-    
-    // Initialize weekly subject attendance data
     return weeks.map(weekStr => {
-      const weekStart = parseISO(weekStr);
-      const weekEnd = endOfWeek(weekStart, { weekStartsOn: 1 });
+      const weekStart = parseISO(weekStr)
+      const weekEnd = endOfWeek(weekStart, { weekStartsOn: 1 })
       
-      // Start with the week label
       const weekData: SubjectData = {
         name: `Week ${format(weekStart, "M/d")}`,
-      };
+      }
       
-      // Add attendance percentage for each subject this week
       subjects.forEach(subject => {
-        // Filter records for this subject and week
         const subjectWeekRecords = records.filter(record => 
-          record.subject === subject.name && 
+          record.subjectName === subject.name && 
           isWithinInterval(record.dateObj, { start: weekStart, end: weekEnd })
-        );
+        )
         
-        // Calculate attendance percentage
-        const totalRecords = subjectWeekRecords.length;
-        const presentRecords = subjectWeekRecords.filter(record => record.status === "present").length;
+        const totalRecords = subjectWeekRecords.length
+        const presentRecords = subjectWeekRecords.filter(record => record.status === "present").length
         
-        // Only add to chart data if we have records for this subject this week
         if (totalRecords > 0) {
-          const attendancePercentage = Math.round((presentRecords / totalRecords) * 100);
-          
-          // Use the actual subject name as the property
-          const safeName = subject.name.replace(/\s+/g, '_');
-          weekData[safeName] = attendancePercentage;
+          const attendancePercentage = Math.round((presentRecords / totalRecords) * 100)
+          const safeName = subject.name.replace(/\s+/g, '_')
+          weekData[safeName] = attendancePercentage
         }
-      });
+      })
       
-      return weekData;
-    });
-  };
+      return weekData
+    })
+  }
 
   const EmptyStateMessage = () => (
     <div className="flex flex-col items-center justify-center h-64 text-center p-4">
@@ -258,18 +244,18 @@ export function AttendanceTrends() {
         Start marking your attendance to see your trends over time.
       </p>
     </div>
-  );
+  )
 
   const LoadingSpinner = () => (
     <div className="flex justify-center items-center h-64">
       <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
     </div>
-  );
+  )
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Attendance Trends</CardTitle>
+        <CardTitle>Attendance Report</CardTitle>
         <CardDescription>Visualize your attendance patterns over time</CardDescription>
       </CardHeader>
       <CardContent>
@@ -356,13 +342,12 @@ export function AttendanceTrends() {
                       }}
                     />
                     <Legend />
-                    {/* Generate lines dynamically based on available subjects */}
                     {subjectData.length > 0 && 
                       Object.keys(subjectData[0])
                         .filter(key => key !== 'name')
                         .map((subject, index) => {
-                          const colors = ["#10b981", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#0ea5e9", "#6366f1"];
-                          const colorIndex = index % colors.length;
+                          const colors = ["#10b981", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#0ea5e9", "#6366f1"]
+                          const colorIndex = index % colors.length
                           
                           return (
                             <Line
@@ -374,7 +359,7 @@ export function AttendanceTrends() {
                               strokeWidth={2}
                               dot={{ r: 4 }}
                             />
-                          );
+                          )
                         })
                     }
                   </LineChart>

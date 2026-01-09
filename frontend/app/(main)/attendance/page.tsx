@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { VisualAttendanceForm } from "@/components/attendance/visual-attendance-form"
+import { RecordAttendance } from "@/components/attendance/record-attendance"
 import { AttendanceCalculator } from "@/components/attendance/attendance-calculator"
 import { TargetAttendanceCalculator } from "@/components/attendance/target-attendance-calculator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -64,7 +64,7 @@ export default function AttendancePage() {
             <div className="container pb-6">
               <TabsContent value="record" className="mt-0 flex-1 min-h-0 overflow-hidden">
                 <div className="max-w-6xl mx-auto h-full">
-                  <VisualAttendanceForm />
+                  <RecordAttendance />
                 </div>
               </TabsContent>
               

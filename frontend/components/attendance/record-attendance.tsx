@@ -32,6 +32,7 @@ interface ClassSlot {
   room?: string
   status?: "present" | "absent" | null
   hasPreparatoryTag?: boolean
+  isPending?: boolean
 }
 
 interface Holiday {
@@ -40,7 +41,7 @@ interface Holiday {
   date: string
 }
 
-export function VisualAttendanceForm() {
+export function RecordAttendance() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
   const [classes, setClasses] = useState<ClassSlot[]>([])
   const [holidays, setHolidays] = useState<Holiday[]>([])
@@ -48,23 +49,66 @@ export function VisualAttendanceForm() {
   const [preparatoryTags, setPreparatoryTags] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [academicPeriod, setAcademicPeriod] = useState<{ startDate: Date; endDate: Date } | null>(null)
+  const [periodLoaded, setPeriodLoaded] = useState(false)
   const { success, error } = useToastNotification()
-  const { isEnabled, isLoading: autoLoading, toggleAutoAttendance } = useAutoAttendance()
+  const { isEnabled, isLoading: autoLoading, toggleAutoAttendance, pendingRecords, removePendingRecord, updatePendingRecord } = useAutoAttendance()
   const [isToggling, setIsToggling] = useState(false)
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
   const [pendingState, setPendingState] = useState(false)
 
   useEffect(() => {
-    loadClassesForDate(selectedDate)
-  }, [selectedDate])
+    loadAcademicPeriod()
+  }, [])
+
+  useEffect(() => {
+    // Only load classes after academic period check is done
+    if (periodLoaded) {
+      loadClassesForDate(selectedDate)
+    }
+  }, [selectedDate, periodLoaded])
 
   useEffect(() => {
     loadHolidaysForMonth(selectedDate)
   }, [selectedDate.getMonth(), selectedDate.getFullYear()])
 
+  const loadAcademicPeriod = async () => {
+    try {
+      const response = await fetchWithAuth('/schedule')
+      const data = await response.json()
+      
+      if (data.success && data.data) {
+        if (data.data.startDate && data.data.endDate) {
+          setAcademicPeriod({
+            startDate: new Date(data.data.startDate),
+            endDate: new Date(data.data.endDate)
+          })
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load academic period:', error)
+    } finally {
+      setPeriodLoaded(true)
+    }
+  }
+
   const loadClassesForDate = async (date: Date) => {
     try {
       setLoading(true)
+      
+      // Check if date is within academic period
+      if (academicPeriod) {
+        const selectedDay = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+        const startDay = new Date(academicPeriod.startDate.getFullYear(), academicPeriod.startDate.getMonth(), academicPeriod.startDate.getDate())
+        const endDay = new Date(academicPeriod.endDate.getFullYear(), academicPeriod.endDate.getMonth(), academicPeriod.endDate.getDate())
+        
+        if (selectedDay < startDay || selectedDay > endDay) {
+          setClasses([])
+          setLoading(false)
+          return
+        }
+      }
+      
       const response = await fetchWithAuth('/schedule')
       const data = await response.json()
       
@@ -92,6 +136,7 @@ export function VisualAttendanceForm() {
         const attendanceData = await attendanceResponse.json()
         
         const classesWithStatus = scheduledClasses.map((cls: any) => {
+          // Check database first
           const dbAttendance = attendanceData.data?.find((a: any) => {
             const nameMatch = a.subjectName === cls.subject
             const scheduleMatch = a.scheduleClassId === cls.id
@@ -99,10 +144,29 @@ export function VisualAttendanceForm() {
             return nameMatch && scheduleMatch && notPrep
           })
           
+          // If not in database, check pending records
+          if (!dbAttendance) {
+            const pendingRecord = pendingRecords.find(p => 
+              p.subjectId === cls.subjectId && 
+              p.scheduleClassId === cls.id &&
+              format(new Date(p.date), 'yyyy-MM-dd') === dateStr
+            )
+            
+            if (pendingRecord) {
+              return {
+                ...cls,
+                status: pendingRecord.status,
+                hasPreparatoryTag: pendingRecord.hasPreparatoryTag || false,
+                isPending: true // Mark as pending
+              }
+            }
+          }
+          
           return {
             ...cls,
             status: dbAttendance?.status || null,
-            hasPreparatoryTag: dbAttendance?.hasPreparatoryTag || false
+            hasPreparatoryTag: dbAttendance?.hasPreparatoryTag || false,
+            isPending: false
           }
         })
         
@@ -140,10 +204,23 @@ export function VisualAttendanceForm() {
   const markAttendance = (classSlot: ClassSlot, status: "present" | "absent") => {
     if (!classSlot.subjectId) return
     
+    const dateStr = format(selectedDate, 'yyyy-MM-dd')
+    const newStatus = classSlot.status === status ? null : status
+    
+    // If class is pending, update the pending record status
+    if (classSlot.isPending) {
+      if (newStatus === null) {
+        // Remove from pending if clearing status
+        removePendingRecord(classSlot.subjectId, new Date(dateStr).toISOString(), classSlot.id)
+      } else {
+        // Update pending record with new status
+        updatePendingRecord(classSlot.subjectId, new Date(dateStr).toISOString(), classSlot.id, { status: newStatus })
+      }
+    }
+    
     const updatedClasses = classes.map(cls => {
       if (cls.id === classSlot.id) {
-        // Toggle if clicking same status
-        return { ...cls, status: cls.status === status ? null : status }
+        return { ...cls, status: newStatus, isPending: newStatus !== null && classSlot.isPending }
       }
       return cls
     })
@@ -151,7 +228,15 @@ export function VisualAttendanceForm() {
   }
 
   const markAllAttendance = (status: "present" | "absent") => {
-    const updatedClasses = classes.map(cls => ({ ...cls, status }))
+    // Clear pending records for all classes
+    const dateStr = format(selectedDate, 'yyyy-MM-dd')
+    classes.forEach(cls => {
+      if (cls.isPending) {
+        removePendingRecord(cls.subjectId, new Date(dateStr).toISOString(), cls.id)
+      }
+    })
+    
+    const updatedClasses = classes.map(cls => ({ ...cls, status, isPending: false }))
     setClasses(updatedClasses)
   }
 
@@ -196,6 +281,7 @@ export function VisualAttendanceForm() {
       const subjectsResponse = await fetchWithAuth('/subject')
       const subjectsData = await subjectsResponse.json()
       const allSubjects = subjectsData.data || []
+      const dateStr = format(selectedDate, 'yyyy-MM-dd')
       
       // Upload each class slot individually
       for (const cls of classes) {
@@ -216,7 +302,7 @@ export function VisualAttendanceForm() {
             const response = await fetchWithAuth('/attendance/per-subject', {
               method: 'POST',
               body: JSON.stringify({
-                date: format(selectedDate, 'yyyy-MM-dd'),
+                date: dateStr,
                 subjectId: matchedSubject._id,
                 status: cls.status,
                 classType: cls.classType,
@@ -229,6 +315,10 @@ export function VisualAttendanceForm() {
             
             if (response.ok) {
               successCount++
+              // Clear from pending if it was auto-marked
+              if (cls.isPending) {
+                removePendingRecord(cls.subjectId, new Date(dateStr).toISOString(), cls.id)
+              }
             } else {
               errorCount++
               console.error(`Failed to upload ${cls.subject}:`, await response.text())
@@ -312,10 +402,10 @@ export function VisualAttendanceForm() {
                   When enabled, the system will:
                   <ul className="list-disc list-inside mt-2 space-y-1">
                     <li>Automatically mark ALL past classes as "present" from schedule start date to today</li>
-                    <li>Mark classes as "present" every hour after they end</li>
+                    <li>At 11:59 PM, auto-mark all unmarked classes as "present"</li>
                     <li>Upload all attendance to database at 11:59 PM</li>
                     <li>Skip holidays and off days automatically</li>
-                    <li>You can still manually edit attendance anytime</li>
+                    <li>You can manually edit any class before 11:59 PM</li>
                   </ul>
                 </div>
               ) : (
@@ -375,6 +465,13 @@ export function VisualAttendanceForm() {
                   mode="single"
                   selected={selectedDate}
                   onSelect={(date) => date && setSelectedDate(date)}
+                  disabled={(date) => {
+                    if (!academicPeriod) return false
+                    const checkDate = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+                    const startDay = new Date(academicPeriod.startDate.getFullYear(), academicPeriod.startDate.getMonth(), academicPeriod.startDate.getDate())
+                    const endDay = new Date(academicPeriod.endDate.getFullYear(), academicPeriod.endDate.getMonth(), academicPeriod.endDate.getDate())
+                    return checkDate < startDay || checkDate > endDay
+                  }}
                   className="rounded-md border-0 p-0 m-0 scale-110"
                 />
               </div>
@@ -423,7 +520,12 @@ export function VisualAttendanceForm() {
                 </div>
               ) : classes.length === 0 ? (
                 <div className="flex items-center justify-center h-32">
-                  <p className="text-muted-foreground text-sm">No classes scheduled for this day</p>
+                  <p className="text-muted-foreground text-sm">
+                    {academicPeriod && (selectedDate < new Date(academicPeriod.startDate.getFullYear(), academicPeriod.startDate.getMonth(), academicPeriod.startDate.getDate()) || 
+                     selectedDate > new Date(academicPeriod.endDate.getFullYear(), academicPeriod.endDate.getMonth(), academicPeriod.endDate.getDate()))
+                      ? 'Selected date is outside academic period'
+                      : 'No classes scheduled for this day'}
+                  </p>
                 </div>
               ) : (
                 classes.map((cls, index) => (
@@ -433,12 +535,17 @@ export function VisualAttendanceForm() {
                       cls.status === 'present' ? 'bg-green-50 border-green-400 dark:bg-green-950 dark:border-green-600' : 
                       cls.status === 'absent' ? 'bg-red-50 border-red-400 dark:bg-red-950 dark:border-red-600' : 
                       'bg-card border-border hover:border-primary/50'
-                    }`}
+                    } ${cls.isPending ? 'ring-2 ring-blue-400 ring-offset-2' : ''}`}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <div className="text-sm font-semibold truncate">{cls.subject}</div>
+                          {cls.isPending && (
+                            <span className="px-2 py-0.5 text-xs font-semibold bg-blue-500 text-white rounded">
+                              Auto-Marked
+                            </span>
+                          )}
                           {cls.hasPreparatoryTag && (
                             <button
                               onClick={() => removePreparatoryTag(cls.subjectId + '_' + cls.id)}
@@ -501,7 +608,7 @@ export function VisualAttendanceForm() {
                     >
                       <option value="">Select</option>
                       {classes
-                        .filter(cls => !cls.status && !cls.hasPreparatoryTag)
+                        .filter(cls => !cls.status && !cls.hasPreparatoryTag && !cls.isPending)
                         .map((cls, index) => (
                           <option key={cls.id || `prep-${index}`} value={cls.subjectId + '_' + cls.id}>
                             {cls.subject} • {cls.startTime} - {cls.endTime}
@@ -544,7 +651,7 @@ export function VisualAttendanceForm() {
               <Button 
                 className="w-full h-11 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 font-semibold transition-colors"
                 onClick={uploadAttendance}
-                disabled={classes.length === 0 || uploading}
+                disabled={classes.length === 0 || uploading || !classes.some(cls => cls.status)}
               >
                 {uploading ? 'Uploading...' : 'Upload Attendance'}
               </Button>
