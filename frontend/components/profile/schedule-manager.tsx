@@ -24,6 +24,7 @@ interface ClassEntry {
   endTime: string;
   room: string;
   classType: string;
+  subjectId?: string;
 }
 
 interface ScheduleData {
@@ -167,7 +168,7 @@ export function ScheduleManager({ onUpdateAction }: ScheduleManagerProps = {}) {
   };
 
   const handleAddClass = () => {
-    if (!newEntry.subject || !newEntry.startTime) {
+    if ((!newEntry.subject && newEntry.classType !== "break") || !newEntry.startTime) {
       toast({
         title: "Missing Information",
         description: "Please fill in at least the subject name and start time.",
@@ -478,11 +479,7 @@ export function ScheduleManager({ onUpdateAction }: ScheduleManagerProps = {}) {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Class Schedule</CardTitle>
-        <CardDescription>Manage your weekly class schedule</CardDescription>
-      </CardHeader>
-      <CardContent>
+      <CardContent className="pt-6">
         <Tabs defaultValue="Monday" onValueChange={setCurrentDay}>
           <TabsList className="w-full grid grid-cols-7">
             {days.map(day => {
@@ -527,6 +524,7 @@ export function ScheduleManager({ onUpdateAction }: ScheduleManagerProps = {}) {
                 )}
               </div>
               
+              <div className="max-h-[360px] overflow-y-auto pr-2">
               {offDays.includes(day) ? (
                 <div className="bg-muted/20 rounded-md p-6 text-center">
                   <CalendarOff className="h-12 w-12 mx-auto mb-2 text-muted-foreground" />
@@ -670,6 +668,7 @@ export function ScheduleManager({ onUpdateAction }: ScheduleManagerProps = {}) {
                   {renderClassList(day)}
                 </>
               )}
+              </div>
             </TabsContent>
           ))}
         </Tabs>

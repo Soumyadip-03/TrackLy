@@ -40,7 +40,7 @@ export default function ProfilePage() {
                 </TabsTrigger>
               </TabsList>
             </div>
-            <div className="flex-1 overflow-y-auto mt-6">
+            <div className="flex-1 overflow-y-auto mt-8">
               <div className="container pb-6">
                 <TabsContent value="personal" className="space-y-4 mt-0">
                   <PersonalInfoForm />

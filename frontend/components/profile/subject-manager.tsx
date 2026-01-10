@@ -180,10 +180,7 @@ export function SubjectManager({ onUpdateAction }: SubjectManagerProps = {}) {
       
       <CardHeader>
         <div className="flex justify-between items-center">
-          <div>
-            <CardTitle>Subject List</CardTitle>
-            <CardDescription>Subjects are automatically synced from your schedule</CardDescription>
-          </div>
+          <div></div>
           <Button 
             variant="destructive" 
             onClick={() => setShowClearDialog(true)}
@@ -205,7 +202,8 @@ export function SubjectManager({ onUpdateAction }: SubjectManagerProps = {}) {
             <Button onClick={loadSubjects} variant="outline">Retry</Button>
           </div>
         ) : subjects.length > 0 || preparatorySubject ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="max-h-[480px] overflow-y-auto pr-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {subjects.map((subject) => {
               const isEditing = editingId === (subject._id || subject.id)
               const attendancePercentage = subject.totalClasses ? Math.round((subject.attendedClasses || 0) / subject.totalClasses * 100) : 0
@@ -291,6 +289,7 @@ export function SubjectManager({ onUpdateAction }: SubjectManagerProps = {}) {
                 </CardContent>
               </Card>
             )}
+          </div>
           </div>
         ) : (
           <div className="text-center py-12">

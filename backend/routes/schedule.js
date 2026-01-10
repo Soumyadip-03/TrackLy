@@ -14,7 +14,8 @@ router.get('/', protect, async (req, res) => {
     const user = await User.findById(req.user.id);
     const academicPeriod = await AcademicPeriod.findOne({ 
       userId: req.user.id, 
-      semester: String(user.currentSemester)
+      semester: String(user.currentSemester),
+      isCompleted: false
     });
 
     let schedule;
@@ -33,6 +34,51 @@ router.get('/', protect, async (req, res) => {
     res.status(200).json({
       success: true,
       data: schedule?.schedule || { classes: [] }
+    });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({
+      success: false,
+      error: 'Server error'
+    });
+  }
+});
+
+// @desc    Get current schedule with full details including date range
+// @route   GET /api/schedule/current
+// @access  Private
+router.get('/current', protect, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    const academicPeriod = await AcademicPeriod.findOne({ 
+      userId: req.user.id, 
+      semester: String(user.currentSemester),
+      isCompleted: false
+    });
+
+    let schedule;
+    if (academicPeriod) {
+      schedule = await Schedule.findOne({ 
+        userId: req.user.id, 
+        academicPeriodId: academicPeriod._id 
+      }).sort({ createdAt: -1 });
+      
+      // Add academic period dates to schedule if available
+      if (schedule && academicPeriod.startDate && academicPeriod.endDate) {
+        schedule = schedule.toObject();
+        schedule.startDate = academicPeriod.startDate;
+        schedule.endDate = academicPeriod.endDate;
+      }
+    } else {
+      schedule = await Schedule.findOne({ 
+        userId: req.user.id,
+        userSemester: user.currentSemester
+      }).sort({ createdAt: -1 });
+    }
+    
+    res.status(200).json({
+      success: true,
+      data: schedule || null
     });
   } catch (err) {
     console.error(err.message);
@@ -122,7 +168,7 @@ router.post('/', protect, async (req, res) => {
   }
 });
 
-// @desc    Clear user's schedule and subjects for current academic period
+// @desc    Clear user's schedule, subjects and attendance for current academic period
 // @route   DELETE /api/schedule
 // @access  Private
 router.delete('/', protect, async (req, res) => {
@@ -135,12 +181,28 @@ router.delete('/', protect, async (req, res) => {
 
     if (academicPeriod) {
       const Subject = require('../models/Subject');
+      const Attendance = require('../models/Attendance');
       
+      // Get all subject IDs for this academic period
+      const subjects = await Subject.find({ 
+        user: req.user.id, 
+        academicPeriodId: academicPeriod._id 
+      }).select('_id');
+      const subjectIds = subjects.map(s => s._id);
+      
+      // Delete attendance records for these subjects
+      await Attendance.deleteMany({ 
+        user: req.user.id,
+        subject: { $in: subjectIds }
+      });
+      
+      // Delete schedule
       await Schedule.deleteMany({ 
         userId: req.user.id, 
         academicPeriodId: academicPeriod._id 
       });
       
+      // Delete subjects
       await Subject.deleteMany({ 
         user: req.user.id, 
         academicPeriodId: academicPeriod._id 

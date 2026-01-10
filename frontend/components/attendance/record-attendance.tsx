@@ -174,7 +174,7 @@ export function RecordAttendance() {
         
         // Load preparatory tags from database
         const taggedClasses = classesWithStatus.filter((cls: any) => cls.hasPreparatoryTag)
-        const tagSet = new Set(taggedClasses.map((cls: any) => cls.subjectId + '_' + cls.id))
+        const tagSet = new Set<string>(taggedClasses.map((cls: any) => cls.subjectId + '_' + cls.id))
         setPreparatoryTags(tagSet)
       } else {
         setClasses([])

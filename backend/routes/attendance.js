@@ -75,15 +75,23 @@ router.post(
           // Update existing record
           attendance.status = status;
           attendance.calculationType = 'wholeDay';
+          attendance.subjectName = subject.name;
+          attendance.classType = subject.classType || 'none';
           await attendance.save();
         } else {
           // Create new record
           attendance = await Attendance.create({
             user: userId,
             subject: subject._id,
+            subjectName: subject.name,
             date: formattedDate,
             status,
-            calculationType: 'wholeDay'
+            calculationType: 'wholeDay',
+            classType: subject.classType || 'none',
+            timeDuration: {
+              startTime: '',
+              endTime: ''
+            }
           });
         }
 

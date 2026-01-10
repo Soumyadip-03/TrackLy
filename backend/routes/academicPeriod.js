@@ -8,6 +8,15 @@ router.get('/', protect, async (req, res) => {
   try {
     const periods = await AcademicPeriod.find({ userId: req.user.id }).sort({ semester: 1 });
     
+    // Auto-mark completed periods
+    const now = new Date();
+    for (const period of periods) {
+      if (new Date(period.endDate) < now && !period.isCompleted) {
+        period.isCompleted = true;
+        await period.save();
+      }
+    }
+    
     res.status(200).json({
       success: true,
       data: periods
@@ -34,6 +43,13 @@ router.get('/:semester', protect, async (req, res) => {
         success: false,
         error: 'Academic period not found'
       });
+    }
+    
+    // Auto-mark completed if end date passed
+    const now = new Date();
+    if (new Date(period.endDate) < now && !period.isCompleted) {
+      period.isCompleted = true;
+      await period.save();
     }
     
     res.status(200).json({
@@ -124,6 +140,66 @@ router.delete('/:semester', protect, async (req, res) => {
     res.status(200).json({
       success: true,
       message: 'Academic period deleted'
+    });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({
+      success: false,
+      error: 'Server error'
+    });
+  }
+});
+
+// Get archived semesters with stats
+router.get('/archived/all', protect, async (req, res) => {
+  try {
+    const Subject = require('../models/Subject');
+    const Attendance = require('../models/Attendance');
+    
+    const completedPeriods = await AcademicPeriod.find({ 
+      userId: req.user.id, 
+      isCompleted: true 
+    }).sort({ semester: -1 });
+    
+    const archivedData = [];
+    
+    for (const period of completedPeriods) {
+      const subjects = await Subject.find({ 
+        user: req.user.id, 
+        semester: parseInt(period.semester) 
+      });
+      
+      let totalAttended = 0;
+      let totalClasses = 0;
+      
+      const subjectStats = subjects.map(subject => {
+        totalAttended += subject.attendedClasses || 0;
+        totalClasses += subject.totalClasses || 0;
+        
+        return {
+          name: subject.name,
+          code: subject.code,
+          classType: subject.classType,
+          attendedClasses: subject.attendedClasses || 0,
+          totalClasses: subject.totalClasses || 0,
+          percentage: subject.totalClasses ? Math.round((subject.attendedClasses / subject.totalClasses) * 100) : 0
+        };
+      });
+      
+      archivedData.push({
+        semester: period.semester,
+        startDate: period.startDate,
+        endDate: period.endDate,
+        totalAttended,
+        totalClasses,
+        overallPercentage: totalClasses ? Math.round((totalAttended / totalClasses) * 100) : 0,
+        subjects: subjectStats
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      data: archivedData
     });
   } catch (err) {
     console.error(err.message);

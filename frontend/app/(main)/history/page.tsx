@@ -2,8 +2,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { PageHeader } from "@/components/page-header"
 import { AttendanceReport } from "@/components/history/attendance-report"
 import { AttendanceLogs } from "@/components/history/attendance-logs"
-import { RecentActivity } from "@/components/history/recent-activity"
-import { BarChart, ClipboardList, Clock } from "lucide-react"
+import { PreviousSemesters } from "@/components/history/previous-semesters"
+import { BarChart, ClipboardList, Archive } from "lucide-react"
 
 export default function HistoryPage() {
   return (
@@ -21,9 +21,9 @@ export default function HistoryPage() {
                 <ClipboardList className="h-4 w-4" />
                 <span>Attendance Logs</span>
               </TabsTrigger>
-              <TabsTrigger value="activity" className="flex items-center gap-2">
-                <Clock className="h-4 w-4" />
-                <span>Recent Activity</span>
+              <TabsTrigger value="previous" className="flex items-center gap-2">
+                <Archive className="h-4 w-4" />
+                <span>Previous Semesters</span>
               </TabsTrigger>
             </TabsList>
           </div>
@@ -37,8 +37,8 @@ export default function HistoryPage() {
                 <AttendanceLogs />
               </TabsContent>
 
-              <TabsContent value="activity" className="space-y-6 mt-0">
-                <RecentActivity />
+              <TabsContent value="previous" className="space-y-6 mt-0">
+                <PreviousSemesters />
               </TabsContent>
             </div>
           </div>

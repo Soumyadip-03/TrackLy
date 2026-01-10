@@ -5,6 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import {
   Area,
   AreaChart,
+  Bar,
+  BarChart,
   CartesianGrid,
   Legend,
   Line,
@@ -34,20 +36,22 @@ import { subjectService } from "@/lib/services/subject-service"
 import { toast } from "@/components/ui/use-toast"
 
 interface AttendanceRecord {
-  _id: string
+  _id?: string
   date: string
   subjectName: string
   status: "present" | "absent"
+  classType?: string
   subject: {
-    _id: string
+    _id?: string
     name: string
   }
 }
 
 interface Subject {
-  _id: string
+  _id?: string
   name: string
   code: string
+  classType?: string
 }
 
 interface WeeklyData {
@@ -145,7 +149,7 @@ export function AttendanceReport() {
       weeks = weeks.slice(-12)
     }
     
-    return weeks.map(weekStart => {
+    return weeks.map((weekStart, index) => {
       const weekEnd = endOfWeek(weekStart, { weekStartsOn: 1 })
       
       const weekRecords = records.filter(record => 
@@ -157,16 +161,14 @@ export function AttendanceReport() {
       const attendancePercentage = totalRecords > 0 ? Math.round((presentRecords / totalRecords) * 100) : 0
       
       return {
-        name: `Week ${format(weekStart, "M/d")}`,
+        name: `Week ${index + 1}`,
         attendance: attendancePercentage,
         weekStart: formatISO(weekStart)
       }
-    }).filter(week => week.attendance > 0 || records.some(r => 
-      isWithinInterval(r.dateObj, { 
-        start: parseISO(week.weekStart), 
-        end: endOfWeek(parseISO(week.weekStart), { weekStartsOn: 1 }) 
-      })
-    ))
+    }).filter(week => {
+      const weekEnd = endOfWeek(parseISO(week.weekStart), { weekStartsOn: 1 })
+      return records.some(r => isWithinInterval(r.dateObj, { start: parseISO(week.weekStart), end: weekEnd }))
+    })
   }
   
   const calculateMonthlyAttendance = (
@@ -194,45 +196,59 @@ export function AttendanceReport() {
         attendance: attendancePercentage,
         monthStart: formatISO(monthStart)
       }
-    }).filter(month => month.attendance > 0)
+    }).filter(month => {
+      const monthEnd = endOfMonth(parseISO(month.monthStart))
+      return records.some(r => isWithinInterval(r.dateObj, { start: parseISO(month.monthStart), end: monthEnd }))
+    })
   }
   
   const calculateSubjectAttendance = (
     records: (AttendanceRecord & { dateObj: Date })[], 
     subjects: Subject[]
   ): SubjectData[] => {
-    const weeks = Array.from(new Set(
-      records.map(record => {
-        const weekStart = startOfWeek(record.dateObj, { weekStartsOn: 1 })
-        return format(weekStart, "yyyy-MM-dd")
-      })
-    )).sort()
+    const subjectMap = new Map<string, { name: string, classType: string, present: number, total: number }>()
     
-    return weeks.map(weekStr => {
-      const weekStart = parseISO(weekStr)
-      const weekEnd = endOfWeek(weekStart, { weekStartsOn: 1 })
+    records.forEach(record => {
+      const subject = subjects.find(s => s.name === record.subjectName)
+      const classType = record.classType || subject?.classType || 'none'
+      const key = `${record.subjectName}_${classType}`
       
-      const weekData: SubjectData = {
-        name: `Week ${format(weekStart, "M/d")}`,
+      if (!subjectMap.has(key)) {
+        subjectMap.set(key, {
+          name: record.subjectName,
+          classType: classType,
+          present: 0,
+          total: 0
+        })
       }
       
-      subjects.forEach(subject => {
-        const subjectWeekRecords = records.filter(record => 
-          record.subjectName === subject.name && 
-          isWithinInterval(record.dateObj, { start: weekStart, end: weekEnd })
-        )
-        
-        const totalRecords = subjectWeekRecords.length
-        const presentRecords = subjectWeekRecords.filter(record => record.status === "present").length
-        
-        if (totalRecords > 0) {
-          const attendancePercentage = Math.round((presentRecords / totalRecords) * 100)
-          const safeName = subject.name.replace(/\s+/g, '_')
-          weekData[safeName] = attendancePercentage
-        }
-      })
+      const data = subjectMap.get(key)!
+      data.total++
+      if (record.status === 'present') {
+        data.present++
+      }
+    })
+    
+    return Array.from(subjectMap.values()).map(data => {
+      const percentage = data.total > 0 ? Math.round((data.present / data.total) * 100) : 0
       
-      return weekData
+      let displayName = data.name
+      if (data.classType && data.classType !== 'none') {
+        const typeMap: { [key: string]: string } = {
+          'lecture': 'LEC',
+          'lab': 'LAB',
+          'theory': 'T',
+          'practical': 'P',
+          'tutorial': 'TUT'
+        }
+        const typeAbbr = typeMap[data.classType.toLowerCase()] || data.classType.substring(0, 3).toUpperCase()
+        displayName = `${data.name} [${typeAbbr}]`
+      }
+      
+      return {
+        name: displayName,
+        attendance: percentage
+      }
     })
   }
 
@@ -254,11 +270,7 @@ export function AttendanceReport() {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Attendance Report</CardTitle>
-        <CardDescription>Visualize your attendance patterns over time</CardDescription>
-      </CardHeader>
-      <CardContent>
+      <CardContent className="pt-6">
         {isLoading ? (
           <LoadingSpinner />
         ) : hasData ? (
@@ -269,7 +281,7 @@ export function AttendanceReport() {
               <TabsTrigger value="subjects">By Subject</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="weekly" className="h-80 mt-4">
+            <TabsContent value="weekly" className="h-[500px] mt-4">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={weeklyData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -297,7 +309,7 @@ export function AttendanceReport() {
               </ResponsiveContainer>
             </TabsContent>
 
-            <TabsContent value="monthly" className="h-80 mt-4">
+            <TabsContent value="monthly" className="h-[500px] mt-4">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={monthlyData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -325,12 +337,19 @@ export function AttendanceReport() {
               </ResponsiveContainer>
             </TabsContent>
 
-            <TabsContent value="subjects" className="h-80 mt-4">
+            <TabsContent value="subjects" className="h-[500px] mt-4">
               {subjectData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={subjectData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey="name" />
+                  <LineChart data={subjectData} margin={{ top: 20, right: 30, left: 0, bottom: 60 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis 
+                      dataKey="name" 
+                      angle={-45} 
+                      textAnchor="end" 
+                      height={100} 
+                      interval={0}
+                      tick={{ fontSize: 12 }}
+                    />
                     <YAxis domain={[0, 100]} />
                     <Tooltip
                       formatter={(value) => [`${value}%`, "Attendance"]}
@@ -341,27 +360,7 @@ export function AttendanceReport() {
                         padding: "0.5rem",
                       }}
                     />
-                    <Legend />
-                    {subjectData.length > 0 && 
-                      Object.keys(subjectData[0])
-                        .filter(key => key !== 'name')
-                        .map((subject, index) => {
-                          const colors = ["#10b981", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#0ea5e9", "#6366f1"]
-                          const colorIndex = index % colors.length
-                          
-                          return (
-                            <Line
-                              key={subject}
-                              type="monotone"
-                              dataKey={subject}
-                              name={subject.replace(/_/g, ' ')}
-                              stroke={colors[colorIndex]}
-                              strokeWidth={2}
-                              dot={{ r: 4 }}
-                            />
-                          )
-                        })
-                    }
+                    <Line type="monotone" dataKey="attendance" stroke="#8b5cf6" strokeWidth={2} dot={{ r: 5 }} />
                   </LineChart>
                 </ResponsiveContainer>
               ) : (
