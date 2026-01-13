@@ -4,7 +4,6 @@ import { useEffect, useState, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { BarChart, AlertCircle, Book } from "lucide-react"
 import { getFromLocalStorage } from "@/lib/storage-utils"
-import { calculateClassAttendanceWithAutoPresentRecords, generateAutoPresentRecords } from "@/lib/attendance-utils"
 import { Badge } from "@/components/ui/badge"
 
 interface AttendanceRecord {
@@ -44,95 +43,70 @@ export function AttendanceOverview() {
 
   // Load attendance data from localStorage
   useEffect(() => {
+    const attendanceRecords = getFromLocalStorage<any[]>('attendance_records', []);
     const schedule = getFromLocalStorage<{classes: ClassEntry[]}>('schedule', {classes: []});
     const classes = schedule.classes || [];
     
+    console.log('AttendanceOverview - Records:', attendanceRecords.length, 'Classes:', classes.length);
+    
     try {
-      // Use the new function that auto-marks past classes as present
-      const allRecords = generateAutoPresentRecords();
-      
-      if (allRecords.length === 0 && classes.length === 0) {
+      if (attendanceRecords.length === 0) {
         setIsLoading(false);
+        setHasData(false);
         return;
       }
       
-      // Calculate class-wise attendance including auto-present records
-      const classAttendanceData = calculateClassAttendanceWithAutoPresentRecords(classes);
-      
       // Calculate overall attendance
-      let totalPresent = 0;
-      let totalClasses = 0;
-      
-      Object.values(classAttendanceData).forEach(data => {
-        totalPresent += data.present;
-        totalClasses += data.total;
-      });
-      
-      // Calculate the overall percentage
-      const calculatedOverall = totalClasses > 0 ? Math.round((totalPresent / totalClasses) * 100) : 0;
+      const totalRecords = attendanceRecords.length;
+      const presentRecords = attendanceRecords.filter(r => r.status === 'present').length;
+      const calculatedOverall = totalRecords > 0 ? Math.round((presentRecords / totalRecords) * 100) : 0;
       setOverallAttendance(calculatedOverall);
       
-      // Convert to percentage and assign colors for UI display
-      const colors = ["bg-blue-500", "bg-green-500", "bg-purple-500", "bg-pink-500", "bg-yellow-500", "bg-teal-500", "bg-indigo-500", "bg-orange-500"];
-      
-      // Group classes by name and type to avoid duplicates in display
-      const classGroups: Record<string, {
+      // Group records by subject/class name
+      const subjectGroups: Record<string, {
         name: string;
-        percentage: number;
+        classType: string;
         total: number;
         present: number;
-        classType: string;
-        classIds: string[];
       }> = {};
       
-      // Process each class, combining those with the same name and type
-      Object.entries(classAttendanceData).forEach(([classId, data]) => {
-        // Skip classes with no attendance records
-        if (data.total === 0) return;
+      attendanceRecords.forEach(record => {
+        const subjectName = record.subject || record.className || 'Unknown';
+        const classType = record.classType || 'Lecture';
+        const key = `${subjectName.toLowerCase()}-${classType.toLowerCase()}`;
         
-        // Ensure we have valid data for name and type
-        const className = data.name || "Unknown Class";
-        const classType = data.type || "Unknown";
-        
-        // Log the actual class data for debugging
-        console.log(`Class data: ID=${classId}, Name=${className}, Type=${classType}`);
-        
-        // Create a key using both name and class type
-        const key = `${className.toLowerCase()}-${classType.toLowerCase()}`;
-        
-        if (!classGroups[key]) {
-          classGroups[key] = {
-            name: className,
-            percentage: data.percentage,
-            total: data.total,
-            present: data.present,
+        if (!subjectGroups[key]) {
+          subjectGroups[key] = {
+            name: subjectName,
             classType: classType,
-            classIds: [classId]
+            total: 0,
+            present: 0
           };
-        } else {
-          // Update existing entry
-          const group = classGroups[key];
-          group.total += data.total;
-          group.present += data.present;
-          group.classIds.push(classId);
-          
-          // Recalculate percentage
-          group.percentage = group.total > 0 
-            ? Math.round((group.present / group.total) * 100) 
-            : 0;
+        }
+        
+        subjectGroups[key].total += 1;
+        if (record.status === 'present') {
+          subjectGroups[key].present += 1;
         }
       });
       
-      // Convert grouped data to our display format
-      const calculatedClassAttendance: ClassAttendance[] = Object.values(classGroups)
-        .map((group, index) => ({
-          name: group.name,
-          percentage: group.percentage,
-          color: colors[index % colors.length],
-          classType: group.classType,
-          classId: group.classIds[0] // Use first class ID as reference
-        }))
-        .sort((a, b) => b.percentage - a.percentage); // Sort by percentage descending
+      // Convert to display format
+      const colors = ["bg-blue-500", "bg-green-500", "bg-purple-500", "bg-pink-500", "bg-yellow-500", "bg-teal-500", "bg-indigo-500", "bg-orange-500"];
+      
+      const calculatedClassAttendance: ClassAttendance[] = Object.entries(subjectGroups)
+        .map(([key, data], index) => {
+          const percentage = data.total > 0 ? Math.round((data.present / data.total) * 100) : 0;
+          return {
+            name: data.name,
+            percentage: percentage,
+            color: colors[index % colors.length],
+            classType: data.classType,
+            classId: key
+          };
+        })
+        .sort((a, b) => b.percentage - a.percentage);
+      
+      console.log('AttendanceOverview - Calculated classes:', calculatedClassAttendance.length);
       
       setClassAttendance(calculatedClassAttendance);
       setClassProgress(Array(calculatedClassAttendance.length).fill(0));
@@ -247,7 +221,7 @@ export function AttendanceOverview() {
         <CardDescription>Your attendance breakdown by class</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-1 gap-3">
+        <div className="grid grid-cols-1 gap-2.5">
           {classAttendance.map((classItem, index) => (
             <div
               key={`class-${classItem.name}-${index}`}
@@ -256,18 +230,18 @@ export function AttendanceOverview() {
               }`}
               style={{ transitionDelay: `${index * 100}ms` }}
             >
-              <div className="p-3 border rounded-md flex items-center justify-between overflow-hidden relative border-gray-200 bg-card hover:bg-accent/5">
+              <div className="p-2.5 border rounded-md flex items-center justify-between overflow-hidden relative border-gray-200 bg-card hover:bg-accent/5">
                 {/* Left colored bar */}
                 <div className={`absolute left-0 top-0 w-1 h-full ${getStatusColor(classProgress[index])}`}></div>
                 
                 {/* Class info */}
-                <div className="flex flex-col">
-                  <div className="flex items-center gap-1">
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-1.5">
                     <Book className="h-4 w-4 text-muted-foreground" />
                     <span className="font-medium text-sm uppercase text-foreground">{classItem.name}</span>
                   </div>
                   
-                  <div className="flex mt-1 gap-1">
+                  <div className="flex">
                     <Badge variant="outline" className="text-xs">
                       {classItem.classType || "CLASS"}
                     </Badge>
@@ -275,7 +249,7 @@ export function AttendanceOverview() {
                 </div>
                 
                 {/* Percentage */}
-                <div className="flex items-center gap-1">
+                <div className="flex items-center">
                   <div
                     className={`font-bold text-lg ${
                       classProgress[index] >= 90

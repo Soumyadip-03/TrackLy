@@ -15,7 +15,11 @@ interface TodoItem {
   priority: "low" | "medium" | "high";
 }
 
-export function UpcomingTasks() {
+interface UpcomingTasksProps {
+  todos?: TodoItem[];
+}
+
+export function UpcomingTasks({ todos: propTodos }: UpcomingTasksProps) {
   const [upcomingTasks, setUpcomingTasks] = useState<{
     count: number;
     nextTask: string;
@@ -30,53 +34,72 @@ export function UpcomingTasks() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Load todos from localStorage
-    const todos = getFromLocalStorage<TodoItem[]>('todos', []);
-    
-    // Filter for incomplete todos with due dates
-    const incompleteTodos = todos.filter(todo => 
-      !todo.completed && todo.dueDate
-    );
-    
-    // Sort by due date (closest first)
-    const sortedTodos = incompleteTodos.sort((a, b) => {
-      if (!a.dueDate) return 1;
-      if (!b.dueDate) return -1;
-      return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
-    });
+    const loadTodos = async () => {
+      try {
+        let todos: TodoItem[] = [];
+        
+        // Use prop todos if provided, otherwise fetch from database
+        if (propTodos && propTodos.length > 0) {
+          todos = propTodos;
+        } else {
+          const { fetchWithAuth } = await import('@/lib/api');
+          const todosRes = await fetchWithAuth('/todo');
+          if (todosRes.ok) {
+            const todosData = await todosRes.json();
+            todos = todosData.data || [];
+          }
+        }
+        
+        // Filter for incomplete todos with due dates
+        const incompleteTodos = todos.filter(todo => 
+          !todo.completed && todo.dueDate
+        );
+        
+        // Sort by due date (closest first)
+        const sortedTodos = incompleteTodos.sort((a, b) => {
+          if (!a.dueDate) return 1;
+          if (!b.dueDate) return -1;
+          return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+        });
 
-    // Format upcoming task info
-    let nextTask = "None scheduled";
-    let daysRemaining = "";
-    let priority = null;
-    
-    if (sortedTodos.length > 0 && sortedTodos[0].dueDate) {
-      const taskDate = new Date(sortedTodos[0].dueDate);
-      const today = new Date();
-      const days = differenceInDays(taskDate, today);
-      
-      nextTask = sortedTodos[0].title;
-      priority = sortedTodos[0].priority;
-      if (days === 0) {
-        daysRemaining = "Due today";
-      } else if (days === 1) {
-        daysRemaining = "Due tomorrow";
-      } else if (days > 0) {
-        daysRemaining = `Due in ${days} days`;
-      } else {
-        daysRemaining = "Overdue";
+        // Format upcoming task info
+        let nextTask = "None scheduled";
+        let daysRemaining = "";
+        let priority = null;
+        
+        if (sortedTodos.length > 0 && sortedTodos[0].dueDate) {
+          const taskDate = new Date(sortedTodos[0].dueDate);
+          const today = new Date();
+          const days = differenceInDays(taskDate, today);
+          
+          nextTask = sortedTodos[0].title;
+          priority = sortedTodos[0].priority;
+          if (days === 0) {
+            daysRemaining = "Due today";
+          } else if (days === 1) {
+            daysRemaining = "Due tomorrow";
+          } else if (days > 0) {
+            daysRemaining = `Due in ${days} days`;
+          } else {
+            daysRemaining = "Overdue";
+          }
+        }
+        
+        setUpcomingTasks({
+          count: sortedTodos.length,
+          nextTask,
+          daysRemaining,
+          priority
+        });
+      } catch (error) {
+        console.error('Error loading todos:', error);
+      } finally {
+        setIsLoading(false);
       }
-    }
+    };
     
-    setUpcomingTasks({
-      count: sortedTodos.length,
-      nextTask,
-      daysRemaining,
-      priority
-    });
-    
-    setIsLoading(false);
-  }, []);
+    loadTodos();
+  }, [propTodos]);
 
   // Get priority color and label
   const getPriorityInfo = (priority: string | null) => {
@@ -100,12 +123,12 @@ export function UpcomingTasks() {
     <Card className="bg-gradient-to-br from-purple-500/10 to-purple-500/5 border-purple-500/20 transition-all duration-300 hover:shadow-md hover:border-purple-500/30">
       <CardContent className="p-4">
         <div className="flex items-center justify-between">
-          <div>
+          <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-muted-foreground">Upcoming Tasks</p>
-            <h3 className="text-2xl font-bold mt-0.5 text-purple-500">
+            <h3 className="text-3xl font-bold mt-0.5 text-purple-500">
               {isLoading ? "-" : upcomingTasks.count}
             </h3>
-            <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-[180px]">
+            <p className="text-xs text-muted-foreground mt-1 truncate">
               {isLoading ? "Loading..." : upcomingTasks.nextTask}
             </p>
             {!isLoading && upcomingTasks.daysRemaining && (
@@ -120,7 +143,7 @@ export function UpcomingTasks() {
               </div>
             )}
           </div>
-          <div className="h-10 w-10 bg-purple-500/20 rounded-full flex items-center justify-center">
+          <div className="h-10 w-10 bg-purple-500/20 rounded-full flex items-center justify-center flex-shrink-0">
             <CalendarDays className="h-5 w-5 text-purple-500" />
           </div>
         </div>

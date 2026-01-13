@@ -285,8 +285,8 @@ export function AttendanceReport() {
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle>Attendance Trends</CardTitle>
-            <CardDescription>Visual analysis of your attendance patterns</CardDescription>
+            <CardTitle>Attendance Overview</CardTitle>
+            <CardDescription>&nbsp;</CardDescription>
           </div>
           <Button
             variant="outline"
@@ -311,9 +311,9 @@ export function AttendanceReport() {
               <TabsTrigger value="subjects">By Subject</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="weekly" className="h-[500px] mt-4">
+            <TabsContent value="weekly" className="h-[300px] mt-4">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={weeklyData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                <AreaChart data={weeklyData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="name" />
                   <YAxis domain={[0, 100]} />
@@ -339,9 +339,9 @@ export function AttendanceReport() {
               </ResponsiveContainer>
             </TabsContent>
 
-            <TabsContent value="monthly" className="h-[500px] mt-4">
+            <TabsContent value="monthly" className="h-[300px] mt-4">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={monthlyData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                <AreaChart data={monthlyData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="name" />
                   <YAxis domain={[0, 100]} />
@@ -367,10 +367,10 @@ export function AttendanceReport() {
               </ResponsiveContainer>
             </TabsContent>
 
-            <TabsContent value="subjects" className="h-[500px] mt-4">
+            <TabsContent value="subjects" className="h-[300px] mt-4">
               {subjectData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={subjectData} margin={{ top: 20, right: 30, left: 0, bottom: 60 }}>
+                  <LineChart data={subjectData} margin={{ top: 10, right: 20, left: 0, bottom: 40 }}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis 
                       dataKey="name" 

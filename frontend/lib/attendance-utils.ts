@@ -155,4 +155,66 @@ export function calculateSubjectAttendanceExcludingHolidays(
   });
   
   return subjectAttendance;
+}
+
+// Calculate class attendance with auto-present records
+export function calculateClassAttendanceWithAutoPresentRecords(
+  classes: any[]
+): Record<string, {
+  name: string;
+  type: string;
+  total: number;
+  present: number;
+  absent: number;
+  percentage: number;
+}> {
+  const records = getFromLocalStorage<any[]>('attendance_records', []);
+  const holidays = getAllHolidays();
+  
+  // Filter out records on holidays
+  const filteredRecords = records.filter(record => !holidays.includes(record.date));
+  
+  const classAttendance: Record<string, {
+    name: string;
+    type: string;
+    total: number;
+    present: number;
+    absent: number;
+    percentage: number;
+  }> = {};
+  
+  // Initialize with all classes
+  classes.forEach(classItem => {
+    if (!isBreakClass(classItem)) {
+      classAttendance[classItem.id] = {
+        name: classItem.name || classItem.subject || 'Unknown',
+        type: classItem.classType || 'Lecture',
+        total: 0,
+        present: 0,
+        absent: 0,
+        percentage: 0
+      };
+    }
+  });
+  
+  // Count attendance from records
+  filteredRecords.forEach(record => {
+    const classId = record.classId;
+    
+    if (classAttendance[classId]) {
+      classAttendance[classId].total += 1;
+      if (record.status === 'present') {
+        classAttendance[classId].present += 1;
+      } else {
+        classAttendance[classId].absent += 1;
+      }
+    }
+  });
+  
+  // Calculate percentages
+  Object.values(classAttendance).forEach(data => {
+    data.percentage = data.total > 0 ? Math.round((data.present / data.total) * 100) : 0;
+  });
+  
+  return classAttendance;
 } 

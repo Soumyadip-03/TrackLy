@@ -2,9 +2,7 @@
 
 import { useAuth } from '@/lib/auth-context'
 import { WeeklyAttendanceChart } from "@/components/dashboard/weekly-attendance-chart"
-import { AttendanceOverviewGraph } from "@/components/dashboard/attendance-overview-graph"
-import { ClassSpecificAttendance } from "@/components/dashboard/class-specific-attendance"
-import { PointsCard } from "@/components/points/points-card"
+import { AttendanceReport } from "@/components/history/attendance-report"
 import { TodaySchedule } from "@/components/dashboard/today-schedule"
 import { UpcomingTasks } from "@/components/dashboard/upcoming-tasks"
 import { PageHeader } from "@/components/page-header"
@@ -62,6 +60,8 @@ export default function DashboardPage() {
   // Stats state
   const [attendanceStats, setAttendanceStats] = useState({
     percentage: "0",
+    present: 0,
+    total: 0,
     trend: "0",
     trendDirection: "up"
   })
@@ -85,6 +85,8 @@ export default function DashboardPage() {
     streak: 0
   })
   const [isDataLoading, setIsDataLoading] = useState(true)
+  const [todaySchedule, setTodaySchedule] = useState<ClassEntry[]>([]);
+  const [upcomingTodos, setUpcomingTodos] = useState<TodoItem[]>([]);
 
 
 
@@ -145,14 +147,33 @@ export default function DashboardPage() {
       try {
         if (!isLoading && user) {
           console.log('Loading dashboard data...')
-          // Get attendance records first
+          
+          // 1. Fetch subjects and attendance from database
+          const { fetchWithAuth } = await import('@/lib/api');
+          
+          let totalPresent = 0;
+          let totalClasses = 0;
+          
+          try {
+            const subjectsRes = await fetchWithAuth('/subject');
+            if (subjectsRes.ok) {
+              const subjectsData = await subjectsRes.json();
+              const subjects = subjectsData.data || [];
+              
+              // Sum up all subjects' total classes and attended classes
+              subjects.forEach((subject: any) => {
+                totalClasses += subject.totalClasses || 0;
+                totalPresent += subject.attendedClasses || 0;
+              });
+            }
+          } catch (error) {
+            console.error('Error fetching subjects:', error);
+          }
+          
+          const currentPercentage = totalClasses > 0 ? Math.round((totalPresent / totalClasses) * 100) : 0;
+          
+          // Calculate trend (compare with previous month if needed)
           const attendanceRecords = getFromLocalStorage<AttendanceRecord[]>('attendance_records', []);
-          
-          // 1. Calculate overall attendance using the utility function for accurate numbers
-          const calculatedStats = calculateAttendanceExcludingHolidays(attendanceRecords);
-          const currentPercentage = calculatedStats.percentage;
-          
-          // Get attendance records to analyze previous periods
           const now = new Date();
           const currentMonth = now.getMonth();
           const currentYear = now.getFullYear();
@@ -163,7 +184,6 @@ export default function DashboardPage() {
                    recordDate.getFullYear() === currentYear;
           });
           
-          // Get previous month (handle January case by going to previous year's December)
           const previousMonth = currentMonth === 0 ? 11 : currentMonth - 1;
           const previousYear = currentMonth === 0 ? currentYear - 1 : currentYear;
           
@@ -189,123 +209,129 @@ export default function DashboardPage() {
           
           setAttendanceStats({
             percentage: currentPercentage.toString(),
+            present: totalPresent,
+            total: totalClasses,
             trend: Math.abs(trend).toString(),
             trendDirection: trendDirection
           });
           
-          // 2. Get today's schedule and next class
-          const schedule = getFromLocalStorage<{classes: ClassEntry[]}>('schedule', {classes: []});
+          // 2. Fetch today's schedule from database
           const today = new Date();
           const dayOfWeek = today.toLocaleDateString("en-US", { weekday: "long" });
           const todayFormatted = format(today, "yyyy-MM-dd");
           
-          // Filter for today's classes
-          const todayClasses = schedule.classes.filter(classItem => 
-            classItem.day === dayOfWeek && 
-            (!classItem.classType || !classItem.classType.toLowerCase().includes('break'))
-          );
-          
-          let nextClass = "No upcoming classes";
-          let nextClassInfo = undefined;
-          let allClassesFinished = false;
-          
-          // If we have classes today
-          if (todayClasses.length > 0) {
-            // Sort by time
-            todayClasses.sort((a, b) => {
-              const timeA = a.startTime || (a.time && a.time.split(" - ")[0]) || "00:00";
-              const timeB = b.startTime || (b.time && b.time.split(" - ")[0]) || "00:00";
-              return timeA.localeCompare(timeB);
-            });
-            
-            // Get the current time and find the next class
-            const now = new Date();
-            const currentHours = now.getHours();
-            const currentMinutes = now.getMinutes();
-            const currentTimeInMinutes = currentHours * 60 + currentMinutes;
-            
-            // Find the next upcoming class
-            let upcomingClass = todayClasses.find(classItem => {
-              let startTime = "00:00";
-              let endTime = "00:00";
+          try {
+            const { fetchWithAuth } = await import('@/lib/api');
+            const scheduleRes = await fetchWithAuth('/schedule');
+            if (scheduleRes.ok) {
+              const scheduleData = await scheduleRes.json();
+              const scheduleInfo = scheduleData.data || { classes: [], offDays: [] };
               
-              if (classItem.startTime) {
-                startTime = classItem.startTime;
-                endTime = classItem.endTime || "23:59";
-              } else if (classItem.time && typeof classItem.time === 'string') {
-                const timeParts = classItem.time.split(" - ");
-                startTime = timeParts[0] || "00:00";
-                endTime = timeParts[1] || (parseInt(startTime.split(":")[0]) + 1) + ":" + startTime.split(":")[1];
+              // Filter classes for today
+              const todayClasses = scheduleInfo.classes
+                ?.filter((c: ClassEntry) => c.day === dayOfWeek)
+                .sort((a: ClassEntry, b: ClassEntry) => (a.time || a.startTime || '').localeCompare(b.time || b.startTime || '')) || [];
+              
+              setTodaySchedule(todayClasses);
+              
+              // Calculate classes today stats
+              let nextClass = "No upcoming classes";
+              let nextClassInfo = undefined;
+              let allClassesFinished = false;
+              
+              if (todayClasses.length > 0) {
+                const currentHours = now.getHours();
+                const currentMinutes = now.getMinutes();
+                const currentTimeInMinutes = currentHours * 60 + currentMinutes;
+                
+                // Find the next upcoming class
+                let upcomingClass = todayClasses.find((classItem: ClassEntry) => {
+                  let startTime = "00:00";
+                  
+                  if (classItem.startTime) {
+                    startTime = classItem.startTime;
+                  } else if (classItem.time && typeof classItem.time === 'string') {
+                    const timeParts = classItem.time.split(" - ");
+                    startTime = timeParts[0] || "00:00";
+                  }
+                  
+                  const [startHours, startMinutes] = startTime.split(":").map(Number);
+                  const classStartTimeInMinutes = startHours * 60 + startMinutes;
+                  
+                  return classStartTimeInMinutes > currentTimeInMinutes;
+                });
+                
+                // Check if all classes for today are finished
+                if (!upcomingClass) {
+                  const lastClass = todayClasses[todayClasses.length - 1];
+                  let endTime = "00:00";
+                  
+                  if (lastClass.endTime) {
+                    endTime = lastClass.endTime;
+                  } else if (lastClass.time && typeof lastClass.time === 'string') {
+                    const timeParts = lastClass.time.split(" - ");
+                    endTime = timeParts[1] || (parseInt(timeParts[0].split(":")[0]) + 1) + ":" + timeParts[0].split(":")[1];
+                  }
+                  
+                  const [endHours, endMinutes] = endTime.split(":").map(Number);
+                  const lastClassEndTimeInMinutes = endHours * 60 + endMinutes;
+                  
+                  if (currentTimeInMinutes > lastClassEndTimeInMinutes) {
+                    allClassesFinished = true;
+                    nextClass = "All classes done";
+                  } else {
+                    upcomingClass = lastClass;
+                  }
+                }
+                
+                if (upcomingClass) {
+                  const className = upcomingClass.subject || upcomingClass.name || "Unnamed class";
+                  
+                  let timeString = "unknown time";
+                  if (upcomingClass.startTime) {
+                    timeString = upcomingClass.startTime;
+                  } else if (upcomingClass.time && typeof upcomingClass.time === 'string') {
+                    timeString = upcomingClass.time.split(" - ")[0];
+                  }
+                  
+                  const attendanceStatus = attendanceRecords.find(record => 
+                    record.date === todayFormatted && 
+                    record.subject.toLowerCase() === className.toLowerCase()
+                  )?.status || null;
+                  
+                  nextClassInfo = {
+                    name: className,
+                    time: timeString,
+                    classType: upcomingClass.classType,
+                    status: attendanceStatus
+                  };
+                  
+                  nextClass = `${className} at ${timeString}`;
+                }
               }
               
-              const [startHours, startMinutes] = startTime.split(":").map(Number);
-              const classStartTimeInMinutes = startHours * 60 + startMinutes;
-              
-              return classStartTimeInMinutes > currentTimeInMinutes;
-            });
-            
-            // Check if all classes for today are finished
-            if (!upcomingClass) {
-              // No upcoming classes, check if all are in the past
-              const lastClass = todayClasses[todayClasses.length - 1];
-              let endTime = "00:00";
-              
-              if (lastClass.endTime) {
-                endTime = lastClass.endTime;
-              } else if (lastClass.time && typeof lastClass.time === 'string') {
-                const timeParts = lastClass.time.split(" - ");
-                endTime = timeParts[1] || (parseInt(timeParts[0].split(":")[0]) + 1) + ":" + timeParts[0].split(":")[1];
-              }
-              
-              const [endHours, endMinutes] = endTime.split(":").map(Number);
-              const lastClassEndTimeInMinutes = endHours * 60 + endMinutes;
-              
-              // If the current time is past the end time of the last class, all classes are done
-              if (currentTimeInMinutes > lastClassEndTimeInMinutes) {
-                allClassesFinished = true;
-                nextClass = "All classes done";
-              } else {
-                // Use the last class as the next class (it's in progress)
-                upcomingClass = lastClass;
-              }
+              setClassesToday({
+                count: todayClasses.length,
+                nextClass,
+                nextClassInfo,
+                allClassesFinished
+              });
             }
-            
-            if (upcomingClass) {
-              // Check attendance status for this class
-              const className = upcomingClass.subject || upcomingClass.name || "Unnamed class";
-              
-              // Get formatted time
-              let timeString = "unknown time";
-              if (upcomingClass.startTime) {
-                timeString = upcomingClass.startTime;
-              } else if (upcomingClass.time && typeof upcomingClass.time === 'string') {
-                timeString = upcomingClass.time.split(" - ")[0];
-              }
-              
-              // Check for attendance status
-              const attendanceStatus = attendanceRecords.find(record => 
-                record.date === todayFormatted && 
-                record.subject.toLowerCase() === className.toLowerCase()
-              )?.status || null;
-              
-              // Store detailed class info
-              nextClassInfo = {
-                name: className,
-                time: timeString,
-                classType: upcomingClass.classType,
-                status: attendanceStatus
-              };
-              
-              nextClass = `${className} at ${timeString}`;
-            }
+          } catch (error) {
+            console.error('Error fetching schedule:', error);
           }
           
-          setClassesToday({
-            count: todayClasses.length,
-            nextClass,
-            nextClassInfo,
-            allClassesFinished
-          });
+          // Fetch todos from database
+          try {
+            const { fetchWithAuth } = await import('@/lib/api');
+            const todosRes = await fetchWithAuth('/todo');
+            if (todosRes.ok) {
+              const todosData = await todosRes.json();
+              setUpcomingTodos(todosData.data || []);
+            }
+          } catch (error) {
+            console.error('Error fetching todos:', error);
+          }
           
           // 3. Get points data
           const pointsData = getFromLocalStorage<PointsData>('points', { total: 100, streak: 0, achievements: [] });
@@ -325,6 +351,39 @@ export default function DashboardPage() {
     }
 
     loadDashboardData()
+    
+    // Listen for data update events
+    const handleScheduleUpdate = () => {
+      console.log('Schedule updated, refetching...');
+      loadDashboardData();
+    };
+    
+    const handleTodoUpdate = () => {
+      console.log('Todos updated, refetching...');
+      loadDashboardData();
+    };
+    
+    const handleAttendanceUpdate = () => {
+      console.log('Attendance updated, refetching...');
+      loadDashboardData();
+    };
+    
+    const handleSubjectUpdate = () => {
+      console.log('Subject updated, refetching...');
+      loadDashboardData();
+    };
+    
+    window.addEventListener('scheduleUpdated', handleScheduleUpdate);
+    window.addEventListener('todosUpdated', handleTodoUpdate);
+    window.addEventListener('attendanceUpdated', handleAttendanceUpdate);
+    window.addEventListener('subjectsUpdated', handleSubjectUpdate);
+    
+    return () => {
+      window.removeEventListener('scheduleUpdated', handleScheduleUpdate);
+      window.removeEventListener('todosUpdated', handleTodoUpdate);
+      window.removeEventListener('attendanceUpdated', handleAttendanceUpdate);
+      window.removeEventListener('subjectsUpdated', handleSubjectUpdate);
+    };
   }, [isLoading, user])
 
   // Show loading state
@@ -386,150 +445,111 @@ export default function DashboardPage() {
             {/* Quick Stats Section */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20 transition-all duration-300 hover:shadow-md hover:border-primary/30">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Overall Attendance</p>
-                      <h3 className="text-2xl font-bold mt-1 text-primary">{attendanceStats.percentage}%</h3>
-                      <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
-                        {(() => {
-                          // Get attendance records and calculated stats for display
-                          const records = getFromLocalStorage<AttendanceRecord[]>('attendance_records', []);
-                          const stats = calculateAttendanceExcludingHolidays(records);
-                          return (
-                            <>
-                              <p>{stats.present}/{stats.total} classes attended</p>
-                              <button 
-                                onClick={() => router.push('/attendance?tab=auto-marked')}
-                                className="text-primary hover:underline mt-1 flex items-center gap-1">
-                                <Check className="h-3 w-3" />
-                                <span>View auto-marked classes</span>
-                              </button>
-                            </>
-                          );
-                        })()}
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-muted-foreground mb-1">Overall Attendance</p>
+                      <h3 className="text-3xl font-bold text-primary leading-none">{attendanceStats.percentage}%</h3>
+                      <div className="text-xs text-muted-foreground mt-2 space-y-1">
+                        <p>{attendanceStats.present}/{attendanceStats.total} classes</p>
                         {attendanceStats.trend !== "0" && (
                           <p className={attendanceStats.trendDirection === "up" ? "text-green-600" : "text-red-600"}>
                             <span className="inline-flex items-center">
-                              {attendanceStats.trendDirection === "up" ? (
-                                <ArrowUp className="h-3 w-3 mr-0.5" />
-                              ) : (
-                                <ArrowDown className="h-3 w-3 mr-0.5" />
-                              )}
-                              {attendanceStats.trend}% from last month
+                              {attendanceStats.trendDirection === "up" ? <ArrowUp className="h-3 w-3 mr-0.5" /> : <ArrowDown className="h-3 w-3 mr-0.5" />}
+                              {attendanceStats.trend}% vs last month
                             </span>
                           </p>
                         )}
                       </div>
                     </div>
-                    <div className="h-12 w-12 bg-primary/20 rounded-full flex items-center justify-center">
-                      <GraduationCap className="h-6 w-6 text-primary" />
+                    <div className="h-10 w-10 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0">
+                      <GraduationCap className="h-5 w-5 text-primary" />
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
               <Card className="bg-gradient-to-br from-blue-500/10 to-blue-500/5 border-blue-500/20 transition-all duration-300 hover:shadow-md hover:border-blue-500/30">
-                <CardContent className="p-6">
+                <CardContent className="p-4">
                   <div className="flex items-center justify-between">
-                    <div>
+                    <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-muted-foreground">Classes Today</p>
-                      <h3 className="text-2xl font-bold mt-1 text-blue-500">{classesToday.count}</h3>
+                      <h3 className="text-3xl font-bold mt-0.5 text-blue-500">{classesToday.count}</h3>
                       
                       {classesToday.allClassesFinished ? (
-                        // All classes done message
                         <div className="mt-1">
                           <div className="flex items-center gap-1 text-xs text-green-600">
-                            <CheckCircle className="h-3 w-3 text-green-600" />
-                            <span className="font-semibold">ALL CLASSES ARE DONE</span>
+                            <CheckCircle className="h-3 w-3" />
+                            <span className="font-semibold">All done!</span>
                           </div>
-                          <p className="text-[10px] text-muted-foreground mt-0.5">
-                            {format(new Date(), 'MMMM d, yyyy')}
-                          </p>
                         </div>
                       ) : classesToday.nextClassInfo ? (
-                        // Next class info
-                        <div className="mt-1 leading-tight">
-                          <div className="flex items-center gap-x-1 text-xs">
+                        <div className="mt-1">
+                          <div className="flex items-center gap-1 text-xs">
                             <span className="text-muted-foreground">Next:</span>
-                            <span className="font-semibold uppercase truncate max-w-[130px]">{classesToday.nextClassInfo.name}</span>
+                            <span className="font-semibold uppercase truncate">{classesToday.nextClassInfo.name}</span>
                             {classesToday.nextClassInfo.status && (
-                              <>
-                                {classesToday.nextClassInfo.status === 'present' ? (
-                                  <Check className="h-3 w-3 text-green-600 flex-shrink-0" />
-                                ) : (
-                                  <X className="h-3 w-3 text-red-600 flex-shrink-0" />
-                                )}
-                              </>
+                              classesToday.nextClassInfo.status === 'present' ? 
+                                <Check className="h-3 w-3 text-green-600 flex-shrink-0" /> : 
+                                <X className="h-3 w-3 text-red-600 flex-shrink-0" />
                             )}
                           </div>
                           <div className="flex items-center gap-1 text-[10px] text-muted-foreground mt-0.5">
                             <span>{classesToday.nextClassInfo.time}</span>
                             {classesToday.nextClassInfo.classType && (
-                              <span className="inline-block px-1 py-0 bg-blue-100 text-blue-800 rounded uppercase font-semibold leading-[14px]">
+                              <span className="px-1 bg-blue-100 text-blue-800 rounded uppercase font-semibold">
                                 {classesToday.nextClassInfo.classType}
                               </span>
                             )}
                           </div>
                         </div>
                       ) : (
-                        // No classes message
-                        <p className="text-xs text-muted-foreground mt-1">No upcoming classes</p>
+                        <p className="text-xs text-muted-foreground mt-1">No classes</p>
                       )}
                     </div>
-                    <div className="h-12 w-12 bg-blue-500/20 rounded-full flex items-center justify-center">
-                      <BookOpen className="h-6 w-6 text-blue-500" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-gradient-to-br from-green-500/10 to-green-500/5 border-green-500/20 transition-all duration-300 hover:shadow-md hover:border-green-500/30">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Reward Points</p>
-                      <h3 className="text-2xl font-bold mt-1 text-green-500">{pointsStats.total}</h3>
-                      <p className="text-xs text-muted-foreground mt-1">{pointsStats.streak} week streak</p>
-                    </div>
-                    <div className="h-12 w-12 bg-green-500/20 rounded-full flex items-center justify-center">
-                      <svg className="h-6 w-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                        />
-                      </svg>
+                    <div className="h-10 w-10 bg-blue-500/20 rounded-full flex items-center justify-center flex-shrink-0">
+                      <BookOpen className="h-5 w-5 text-blue-500" />
                     </div>
                   </div>
                 </CardContent>
               </Card>
               
-              <UpcomingTasks />
+              <UpcomingTasks todos={upcomingTodos} />
+
+              <Card className="bg-gradient-to-br from-green-500/10 to-green-500/5 border-green-500/20 transition-all duration-300 hover:shadow-md hover:border-green-500/30">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Reward Points</p>
+                      <h3 className="text-3xl font-bold mt-0.5 text-green-500">{pointsStats.total}</h3>
+                      <p className="text-xs text-muted-foreground mt-1">{pointsStats.streak} week streak</p>
+                    </div>
+                    <div className="h-10 w-10 bg-green-500/20 rounded-full flex items-center justify-center">
+                      <svg className="h-5 w-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
 
-            {/* Main Content */}
+            {/* Main Content Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Left Column */}
-              <div className="lg:col-span-3 space-y-6">
-                <AttendanceOverviewGraph />
+              {/* Left Column - 2/3 width - Placeholder for new component */}
+              <div className="lg:col-span-2 space-y-6">
+                {/* Add your new component here */}
+              </div>
+
+              {/* Right Column - 1/3 width */}
+              <div className="space-y-6">
+                <TodaySchedule schedule={todaySchedule} />
               </div>
             </div>
 
-            {/* Additional Content */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
-              {/* Left Column */}
-              <div className="lg:col-span-2 space-y-6">
-                <ClassSpecificAttendance />
-                <WeeklyAttendanceChart />
-              </div>
-
-              {/* Right Column */}
-              <div className="space-y-6">
-                <TodaySchedule />
-                <PointsCard />
-              </div>
+            {/* Attendance Analytics - Full Width */}
+            <div className="grid grid-cols-1 gap-6">
+              <AttendanceReport />
             </div>
           </>
         )}

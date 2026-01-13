@@ -100,6 +100,10 @@ export function SubjectManager({ onUpdateAction }: SubjectManagerProps = {}) {
       await subjectService.update(subjectId, { code: editCode })
       await loadSubjects()
       setEditingId(null)
+      
+      // Dispatch event to notify other components
+      window.dispatchEvent(new CustomEvent('subjectsUpdated'))
+      
       toast({
         title: "Course Code Updated",
         description: "Course code has been saved successfully.",
@@ -129,6 +133,10 @@ export function SubjectManager({ onUpdateAction }: SubjectManagerProps = {}) {
       if (success) {
         setSubjects([]);
         setPreparatorySubject(null);
+        
+        // Dispatch event to notify other components
+        window.dispatchEvent(new CustomEvent('subjectsUpdated'))
+        
         toast({
           title: "All Subjects Cleared",
           description: "All subjects including Preparatory have been deleted.",
