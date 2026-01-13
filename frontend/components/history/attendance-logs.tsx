@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { CheckCircle2, XCircle, Calendar, Clock, BookOpen, Filter } from "lucide-react"
+import { CheckCircle2, XCircle, Calendar, Clock, BookOpen, Filter, RefreshCw } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { format, parseISO, getDay } from "date-fns"
 import { fetchWithAuth } from "@/lib/api"
 import { toast } from "@/components/ui/use-toast"
@@ -54,6 +55,17 @@ export function AttendanceLogs() {
 
   useEffect(() => {
     loadAttendanceLogs()
+    
+    // Listen for attendance upload events
+    const handleAttendanceUpdate = () => {
+      loadAttendanceLogs()
+    }
+    
+    window.addEventListener('attendanceUpdated', handleAttendanceUpdate)
+    
+    return () => {
+      window.removeEventListener('attendanceUpdated', handleAttendanceUpdate)
+    }
   }, [])
 
   useEffect(() => {
@@ -197,6 +209,16 @@ export function AttendanceLogs() {
             <CardDescription>Recent attendance records</CardDescription>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={loadAttendanceLogs}
+              disabled={isLoading}
+              className="gap-2"
+            >
+              <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
             <Select value={dayFilter} onValueChange={setDayFilter}>
               <SelectTrigger className="w-[140px] h-9">
                 <Filter className="h-3.5 w-3.5 mr-1" />

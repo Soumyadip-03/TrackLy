@@ -336,6 +336,9 @@ export function RecordAttendance() {
           `Successfully uploaded ${successCount} record${successCount > 1 ? 's' : ''}${errorCount > 0 ? `. ${errorCount} failed.` : ''}`
         )
         
+        // Dispatch event to notify other components
+        window.dispatchEvent(new CustomEvent('attendanceUpdated'))
+        
         // Reload from database to sync
         await loadClassesForDate(selectedDate)
       } else {

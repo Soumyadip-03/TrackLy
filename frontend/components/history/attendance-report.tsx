@@ -30,7 +30,8 @@ import {
   endOfMonth,
   formatISO,
 } from "date-fns"
-import { AlertCircle } from "lucide-react"
+import { AlertCircle, RefreshCw } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { fetchWithAuth } from "@/lib/api"
 import { subjectService } from "@/lib/services/subject-service"
 import { toast } from "@/components/ui/use-toast"
@@ -79,6 +80,17 @@ export function AttendanceReport() {
 
   useEffect(() => {
     loadAttendanceData()
+    
+    // Listen for attendance upload events
+    const handleAttendanceUpdate = () => {
+      loadAttendanceData()
+    }
+    
+    window.addEventListener('attendanceUpdated', handleAttendanceUpdate)
+    
+    return () => {
+      window.removeEventListener('attendanceUpdated', handleAttendanceUpdate)
+    }
   }, [])
 
   const loadAttendanceData = async () => {
@@ -270,7 +282,25 @@ export function AttendanceReport() {
 
   return (
     <Card>
-      <CardContent className="pt-6">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle>Attendance Trends</CardTitle>
+            <CardDescription>Visual analysis of your attendance patterns</CardDescription>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={loadAttendanceData}
+            disabled={isLoading}
+            className="gap-2"
+          >
+            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
         {isLoading ? (
           <LoadingSpinner />
         ) : hasData ? (
