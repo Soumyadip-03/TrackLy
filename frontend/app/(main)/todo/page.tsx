@@ -157,23 +157,29 @@ export default function TodoPage() {
   }
 
   return (
-    <div className="container py-6 space-y-8">
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        {/* Left: Todo Form */}
-        <div className="lg:col-span-2">
-          <ClientOnly>
-            <TodoForm />
-          </ClientOnly>
-        </div>
-        
-        {/* Right: Todo List */}
-        <div className="lg:col-span-3">
-          <Card>
-            <CardHeader>
-              <CardTitle>Your Tasks</CardTitle>
-              <CardDescription>Manage your upcoming tasks and assignments</CardDescription>
-            </CardHeader>
-            <CardContent>
+    <div className="h-[calc(100vh-4rem)] flex flex-col overflow-hidden">
+      <div className="py-6 text-center flex-shrink-0">
+        <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">Task Manager</h1>
+        <p className="text-muted-foreground">Organize your work and stay productive</p>
+      </div>
+      
+      <div className="flex-1 min-h-0 px-4 pb-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-6xl mx-auto h-full">
+          {/* Left: Todo Form */}
+          <div className="flex flex-col h-full">
+            <ClientOnly>
+              <TodoForm />
+            </ClientOnly>
+          </div>
+          
+          {/* Right: Todo List */}
+          <div className="flex flex-col h-full">
+            <Card className="h-full shadow-lg border-2 flex flex-col">
+              <CardHeader className="bg-gradient-to-r from-primary/5 to-purple-500/5 border-b flex-shrink-0">
+                <CardTitle className="text-2xl">Your Tasks</CardTitle>
+                <CardDescription>Manage your upcoming tasks and assignments</CardDescription>
+              </CardHeader>
+              <CardContent className="pt-6 flex-1 min-h-0 overflow-hidden flex flex-col">
               <ClientOnly fallback={
                 <div className="flex justify-center items-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -184,11 +190,17 @@ export default function TodoPage() {
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                   </div>
                 ) : todos.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <p>No tasks yet. Add a new task to get started!</p>
+                  <div className="text-center py-12">
+                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
+                      <svg className="w-8 h-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                      </svg>
+                    </div>
+                    <p className="text-muted-foreground text-lg">No tasks yet</p>
+                    <p className="text-sm text-muted-foreground mt-1">Add a new task to get started!</p>
                   </div>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="space-y-4 overflow-y-auto h-full pr-2">
                     {todos
                       .sort((a, b) => {
                         if (a.completed !== b.completed) {
@@ -211,8 +223,8 @@ export default function TodoPage() {
                       .map((todo) => (
                         <div 
                           key={todo._id} 
-                          className={`border rounded-lg p-4 transition-all ${
-                            todo.completed ? 'opacity-60 bg-muted/30' : ''
+                          className={`group border-2 rounded-xl p-4 transition-all hover:shadow-md ${
+                            todo.completed ? 'opacity-60 bg-muted/30 border-muted' : 'border-border hover:border-primary/50'
                           }`}
                         >
                           <div className="flex items-start gap-3">
@@ -356,6 +368,7 @@ export default function TodoPage() {
           </Card>
         </div>
       </div>
+    </div>
     </div>
   )
 }

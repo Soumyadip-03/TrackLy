@@ -1,15 +1,12 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
-import { Trash2, Calendar, Plus } from "lucide-react"
+import { Calendar, Plus } from "lucide-react"
 import { toast } from "@/components/ui/use-toast"
-import { getFromLocalStorage } from "@/lib/storage-utils"
 import { fetchWithAuth } from "@/lib/api"
 
 interface Holiday {
@@ -29,9 +26,9 @@ interface HolidayManagerProps {
   onHolidayAdded?: () => void
 }
 
-export function HolidayManager({ currentSemester, startDate, endDate, onHolidayAdded }: HolidayManagerProps) {
-  const [selectedDay, setSelectedDay] = useState<string>("")
-  const [selectedMonth, setSelectedMonth] = useState<string>("")
+export function HolidayManager({ currentSemester, startDate: periodStart, endDate: periodEnd, onHolidayAdded }: HolidayManagerProps) {
+  const [startDate, setStartDate] = useState<string>("")
+  const [endDate, setEndDate] = useState<string>("")
   const [reason, setReason] = useState<string>("")
   const [isLoading, setIsLoading] = useState(false)
 
@@ -120,31 +117,31 @@ export function HolidayManager({ currentSemester, startDate, endDate, onHolidayA
   }
 
   const addHoliday = async () => {
-    if (!selectedDay || !selectedMonth) {
+    if (!startDate) {
       toast({
         title: "Error",
-        description: "Please select both day and month",
+        description: "Please select start date",
         variant: "destructive"
       })
       return
     }
 
-    const day = parseInt(selectedDay)
-    const month = parseInt(selectedMonth)
+    if (!reason || reason.trim() === '') {
+      toast({
+        title: "Error",
+        description: "Please provide a reason for the holiday",
+        variant: "destructive"
+      })
+      return
+    }
+
+    const start = new Date(startDate)
+    const end = endDate ? new Date(endDate) : new Date(startDate)
     
-    if (!isDateInRange(day, month)) {
-      toast({
-        title: "Error", 
-        description: "Holiday date must be within the academic period",
-        variant: "destructive"
-      })
-      return
-    }
-
-    if (isDateInPast(day, month)) {
+    if (start > end) {
       toast({
         title: "Error",
-        description: "Cannot add holiday for past dates",
+        description: "Start date cannot be after end date",
         variant: "destructive"
       })
       return
@@ -152,28 +149,25 @@ export function HolidayManager({ currentSemester, startDate, endDate, onHolidayA
 
     setIsLoading(true)
     try {
-      const years = getValidYears()
-      const year = years.length > 0 ? years[0] : new Date().getFullYear()
-      
-      const response = await fetchWithAuth('/holidays', {
+      const response = await fetchWithAuth('/holidays/range', {
         method: 'POST',
         body: JSON.stringify({
-          day,
-          month,
-          year,
+          startDate: start.toISOString(),
+          endDate: end.toISOString(),
           reason: reason || undefined,
           semester: currentSemester
         })
       })
 
       if (response.ok) {
+        const data = await response.json()
         onHolidayAdded?.()
-        setSelectedDay("")
-        setSelectedMonth("")
+        setStartDate("")
+        setEndDate("")
         setReason("")
         toast({
           title: "Success",
-          description: "Holiday added successfully"
+          description: `${data.count} holiday(s) added successfully`
         })
       } else {
         const errorData = await response.json()
@@ -190,7 +184,7 @@ export function HolidayManager({ currentSemester, startDate, endDate, onHolidayA
     }
   }
 
-  if (!startDate || !endDate) {
+  if (!periodStart || !periodEnd) {
     return (
       <Card>
         <CardHeader>
@@ -225,54 +219,46 @@ export function HolidayManager({ currentSemester, startDate, endDate, onHolidayA
       <CardContent className="space-y-1.5 flex-1 min-h-0 overflow-hidden pt-3">
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1">
-            <Label className="text-sm">Month</Label>
-            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select month" />
-              </SelectTrigger>
-              <SelectContent>
-                {getValidMonths().map(month => (
-                  <SelectItem key={month.value} value={month.value}>
-                    {month.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label className="text-sm">Start Date</Label>
+            <Input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              min={periodStart ? new Date(periodStart).toISOString().split('T')[0] : undefined}
+              max={periodEnd ? new Date(periodEnd).toISOString().split('T')[0] : undefined}
+            />
           </div>
           
           <div className="space-y-1">
-            <Label className="text-sm">Day</Label>
-            <Select value={selectedDay} onValueChange={setSelectedDay} disabled={!selectedMonth}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select day" />
-              </SelectTrigger>
-              <SelectContent>
-                {getDaysForSelectedMonth().map(day => (
-                  <SelectItem key={day.value} value={day.value}>
-                    {day.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label className="text-sm">End Date (Optional)</Label>
+            <Input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              min={startDate || (periodStart ? new Date(periodStart).toISOString().split('T')[0] : undefined)}
+              max={periodEnd ? new Date(periodEnd).toISOString().split('T')[0] : undefined}
+              disabled={!startDate}
+            />
           </div>
         </div>
 
         <div className="space-y-1">
-          <Label className="text-sm">Reason (Optional)</Label>
+          <Label className="text-sm">Reason</Label>
           <Input
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="Enter reason for holiday"
+            placeholder="e.g., Durga Puja"
+            required
           />
         </div>
 
         <Button 
           onClick={addHoliday} 
-          disabled={!selectedDay || !selectedMonth || isLoading}
+          disabled={!startDate || !reason || isLoading}
           className="w-full"
         >
           <Plus className="h-4 w-4 mr-2" />
-          Add Holiday
+          Add Holiday{endDate && endDate !== startDate ? 's' : ''}
         </Button>
       </CardContent>
     </Card>

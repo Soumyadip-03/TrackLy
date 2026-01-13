@@ -4,6 +4,87 @@ const Holiday = require('../models/Holiday');
 const AcademicPeriod = require('../models/AcademicPeriod');
 const { protect } = require('../middleware/auth');
 
+// @desc    Add holiday range
+// @route   POST /api/holidays/range
+// @access  Private
+router.post('/range', protect, async (req, res) => {
+  try {
+    console.log('📥 [HOLIDAY RANGE] Request body:', req.body);
+    const { startDate, endDate, reason, semester } = req.body;
+
+    if (!startDate || !semester) {
+      console.log('❌ [HOLIDAY RANGE] Missing required fields');
+      return res.status(400).json({
+        success: false,
+        error: 'Start date and semester are required'
+      });
+    }
+    
+    if (!reason || reason.trim() === '') {
+      console.log('❌ [HOLIDAY RANGE] Missing reason');
+      return res.status(400).json({
+        success: false,
+        error: 'Reason is required for holidays'
+      });
+    }
+    
+    const academicPeriod = await AcademicPeriod.findOne({
+      userId: req.user.id,
+      semester: semester
+    });
+    
+    if (!academicPeriod) {
+      console.log('❌ [HOLIDAY RANGE] Academic period not found for semester:', semester);
+      return res.status(404).json({
+        success: false,
+        error: 'Academic period not found for this semester'
+      });
+    }
+    
+    console.log('✅ [HOLIDAY RANGE] Academic period found:', academicPeriod._id);
+    
+    const start = new Date(startDate);
+    const end = endDate ? new Date(endDate) : new Date(startDate);
+    const holidays = [];
+    
+    console.log('📅 [HOLIDAY RANGE] Creating holidays from', start.toISOString().split('T')[0], 'to', end.toISOString().split('T')[0]);
+    
+    const currentDate = new Date(start);
+    while (currentDate <= end) {
+      try {
+        const holiday = await Holiday.create({
+          academicPeriodId: academicPeriod._id,
+          userId: req.user.id,
+          date: new Date(currentDate),
+          reason: reason
+        });
+        holidays.push(holiday);
+        console.log('✅ [HOLIDAY RANGE] Created holiday for:', currentDate.toISOString().split('T')[0]);
+      } catch (err) {
+        if (err.code !== 11000) {
+          console.log('❌ [HOLIDAY RANGE] Error creating holiday:', err.message);
+          throw err;
+        }
+        console.log('⏭️  [HOLIDAY RANGE] Skipping duplicate for:', currentDate.toISOString().split('T')[0]);
+      }
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    console.log('🎉 [HOLIDAY RANGE] Created', holidays.length, 'holidays');
+    res.status(200).json({
+      success: true,
+      data: holidays,
+      count: holidays.length
+    });
+  } catch (err) {
+    console.error('❌ [HOLIDAY RANGE] Error:', err.message);
+    res.status(500).json({
+      success: false,
+      error: 'Server error'
+    });
+  }
+});
+
 // @desc    Get holidays for a specific academic period
 // @route   GET /api/holidays/:semester
 // @access  Private
@@ -23,7 +104,7 @@ router.get('/:semester', protect, async (req, res) => {
     }
     
     // Get holidays for this academic period
-    const holidays = await Holiday.find({ academicPeriodId: academicPeriod._id }).sort({ month: 1, day: 1 });
+    const holidays = await Holiday.find({ academicPeriodId: academicPeriod._id }).sort({ date: 1 });
     
     res.status(200).json({
       success: true,
@@ -43,7 +124,7 @@ router.get('/:semester', protect, async (req, res) => {
 // @access  Private
 router.get('/', protect, async (req, res) => {
   try {
-    const holidays = await Holiday.find({ userId: req.user.id }).sort({ year: 1, month: 1, day: 1 });
+    const holidays = await Holiday.find({ userId: req.user.id }).sort({ date: 1 });
     
     res.status(200).json({
       success: true,
@@ -72,7 +153,6 @@ router.post('/', protect, async (req, res) => {
       });
     }
     
-    // Find academic period
     const academicPeriod = await AcademicPeriod.findOne({
       userId: req.user.id,
       semester: semester
@@ -85,13 +165,10 @@ router.post('/', protect, async (req, res) => {
       });
     }
     
-    // Create holiday
     const holiday = await Holiday.create({
       academicPeriodId: academicPeriod._id,
       userId: req.user.id,
-      day: parseInt(day),
-      month: parseInt(month),
-      year: parseInt(year),
+      date: new Date(parseInt(year), parseInt(month) - 1, parseInt(day)),
       reason: reason || ''
     });
 

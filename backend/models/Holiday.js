@@ -11,25 +11,13 @@ const HolidaySchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
-  day: {
-    type: Number,
-    required: [true, 'Please provide day'],
-    min: 1,
-    max: 31
-  },
-  month: {
-    type: Number,
-    required: [true, 'Please provide month'],
-    min: 1,
-    max: 12
-  },
-  year: {
-    type: Number,
-    required: [true, 'Please provide year']
+  date: {
+    type: Date,
+    required: true
   },
   reason: {
     type: String,
-    default: ''
+    required: [true, 'Please provide a reason for the holiday']
   },
   createdAt: {
     type: Date,
@@ -40,8 +28,26 @@ const HolidaySchema = new mongoose.Schema({
 // Index for faster queries
 HolidaySchema.index({ academicPeriodId: 1 });
 HolidaySchema.index({ userId: 1 });
+HolidaySchema.index({ date: 1 });
 
 // Prevent duplicate holidays for same date in same academic period
-HolidaySchema.index({ academicPeriodId: 1, day: 1, month: 1, year: 1 }, { unique: true });
+HolidaySchema.index({ academicPeriodId: 1, date: 1 }, { unique: true });
+
+// Virtual fields for backward compatibility
+HolidaySchema.virtual('day').get(function() {
+  return this.date.getDate();
+});
+
+HolidaySchema.virtual('month').get(function() {
+  return this.date.getMonth() + 1;
+});
+
+HolidaySchema.virtual('year').get(function() {
+  return this.date.getFullYear();
+});
+
+// Ensure virtuals are included in JSON
+HolidaySchema.set('toJSON', { virtuals: true });
+HolidaySchema.set('toObject', { virtuals: true });
 
 module.exports = mongoose.model('Holiday', HolidaySchema);

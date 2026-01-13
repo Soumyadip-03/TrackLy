@@ -37,12 +37,13 @@ interface ClassSlot {
 
 interface Holiday {
   _id: string
-  name: string
+  reason: string
   date: string
 }
 
 export function RecordAttendance() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
+  const [currentMonth, setCurrentMonth] = useState<Date>(new Date())
   const [classes, setClasses] = useState<ClassSlot[]>([])
   const [holidays, setHolidays] = useState<Holiday[]>([])
   const [preparatorySubject, setPreparatorySubject] = useState<string>("")
@@ -62,6 +63,24 @@ export function RecordAttendance() {
   }, [])
 
   useEffect(() => {
+    // Set initial month to academic period start if available
+    if (academicPeriod && periodLoaded) {
+      const today = new Date()
+      const startDate = new Date(academicPeriod.startDate)
+      const endDate = new Date(academicPeriod.endDate)
+      
+      // If today is within period, use today, otherwise use start date
+      if (today >= startDate && today <= endDate) {
+        setCurrentMonth(today)
+        setSelectedDate(today)
+      } else {
+        setCurrentMonth(startDate)
+        setSelectedDate(startDate)
+      }
+    }
+  }, [academicPeriod, periodLoaded])
+
+  useEffect(() => {
     // Only load classes after academic period check is done
     if (periodLoaded) {
       loadClassesForDate(selectedDate)
@@ -69,8 +88,8 @@ export function RecordAttendance() {
   }, [selectedDate, periodLoaded])
 
   useEffect(() => {
-    loadHolidaysForMonth(selectedDate)
-  }, [selectedDate.getMonth(), selectedDate.getFullYear()])
+    loadHolidaysForMonth(currentMonth)
+  }, [currentMonth])
 
   const loadAcademicPeriod = async () => {
     try {
@@ -95,6 +114,16 @@ export function RecordAttendance() {
   const loadClassesForDate = async (date: Date) => {
     try {
       setLoading(true)
+      
+      // Check if date is a holiday
+      const dateStr = format(date, 'yyyy-MM-dd')
+      const isHoliday = holidays.some(h => format(new Date(h.date), 'yyyy-MM-dd') === dateStr)
+      
+      if (isHoliday) {
+        setClasses([])
+        setLoading(false)
+        return
+      }
       
       // Check if date is within academic period
       if (academicPeriod) {
@@ -191,10 +220,18 @@ export function RecordAttendance() {
     try {
       const year = date.getFullYear()
       const month = date.getMonth() + 1
-      const response = await fetchWithAuth(`/holidays?year=${year}&month=${month}`)
+      
+      // Fetch all holidays for the user
+      const response = await fetchWithAuth('/holidays')
       const data = await response.json()
+      
       if (data.success) {
-        setHolidays(data.data || [])
+        // Filter holidays for the current month
+        const monthHolidays = (data.data || []).filter((h: any) => {
+          const holidayDate = new Date(h.date)
+          return holidayDate.getMonth() + 1 === month && holidayDate.getFullYear() === year
+        })
+        setHolidays(monthHolidays)
       }
     } catch (error) {
       console.error('Failed to load holidays:', error)
@@ -388,7 +425,7 @@ export function RecordAttendance() {
     setIsToggling(false)
   }
 
-  const monthName = format(selectedDate, 'MMMM')
+  const currentMonthName = format(currentMonth, 'MMMM yyyy')
   const hasHolidays = holidays.length > 0
 
   return (
@@ -468,6 +505,10 @@ export function RecordAttendance() {
                   mode="single"
                   selected={selectedDate}
                   onSelect={(date) => date && setSelectedDate(date)}
+                  month={currentMonth}
+                  onMonthChange={setCurrentMonth}
+                  fromDate={academicPeriod?.startDate}
+                  toDate={academicPeriod?.endDate}
                   disabled={(date) => {
                     if (!academicPeriod) return false
                     const checkDate = new Date(date.getFullYear(), date.getMonth(), date.getDate())
@@ -490,12 +531,12 @@ export function RecordAttendance() {
                   <ul className="space-y-1">
                     {holidays.map(holiday => (
                       <li key={holiday._id} className="text-sm text-muted-foreground">
-                        <span className="font-medium">{format(new Date(holiday.date), 'dd MMM')}</span> - {holiday.name}
+                        <span className="font-medium">{format(new Date(holiday.date), 'dd MMM')}</span> - {holiday.reason}
                       </li>
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-muted-foreground text-sm">No holiday in {monthName} month</p>
+                  <p className="text-muted-foreground text-sm">No holidays in {currentMonthName}</p>
                 )}
               </div>
             </CardContent>
@@ -524,10 +565,21 @@ export function RecordAttendance() {
               ) : classes.length === 0 ? (
                 <div className="flex items-center justify-center h-32">
                   <p className="text-muted-foreground text-sm">
-                    {academicPeriod && (selectedDate < new Date(academicPeriod.startDate.getFullYear(), academicPeriod.startDate.getMonth(), academicPeriod.startDate.getDate()) || 
-                     selectedDate > new Date(academicPeriod.endDate.getFullYear(), academicPeriod.endDate.getMonth(), academicPeriod.endDate.getDate()))
-                      ? 'Selected date is outside academic period'
-                      : 'No classes scheduled for this day'}
+                    {(() => {
+                      const dateStr = format(selectedDate, 'yyyy-MM-dd')
+                      const holiday = holidays.find(h => format(new Date(h.date), 'yyyy-MM-dd') === dateStr)
+                      
+                      if (holiday) {
+                        return `No classes scheduled due to ${holiday.reason}`
+                      }
+                      
+                      if (academicPeriod && (selectedDate < new Date(academicPeriod.startDate.getFullYear(), academicPeriod.startDate.getMonth(), academicPeriod.startDate.getDate()) || 
+                       selectedDate > new Date(academicPeriod.endDate.getFullYear(), academicPeriod.endDate.getMonth(), academicPeriod.endDate.getDate()))) {
+                        return 'Selected date is outside academic period'
+                      }
+                      
+                      return 'No classes scheduled for this day'
+                    })()}
                   </p>
                 </div>
               ) : (

@@ -87,12 +87,12 @@ export function TodoForm() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Add New Todo</CardTitle>
+    <Card className="h-full shadow-lg border-2 flex flex-col overflow-hidden">
+      <CardHeader className="bg-gradient-to-r from-primary/5 to-purple-500/5 border-b flex-shrink-0">
+        <CardTitle className="text-2xl">Add New Todo</CardTitle>
       </CardHeader>
-      <form onSubmit={handleSubmit}>
-        <CardContent className="space-y-4">
+      <form onSubmit={handleSubmit} className="flex-1 flex flex-col overflow-hidden">
+        <CardContent className="space-y-4 pt-6 flex-1 overflow-y-auto">
           <div className="space-y-2">
             <Label htmlFor="title">Title</Label>
             <Input 
@@ -175,7 +175,7 @@ export function TodoForm() {
           </div>
         </CardContent>
         
-        <CardFooter>
+        <CardFooter className="flex-shrink-0 border-t bg-muted/20">
           <SaveButton 
             isSaving={isSaving} 
             variant="primary"
