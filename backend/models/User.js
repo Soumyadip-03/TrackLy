@@ -108,6 +108,31 @@ const UserSchema = new mongoose.Schema({
     attendanceThreshold: {
       type: String,
       default: '75'
+    },
+    attendanceReminderFrequency: {
+      type: String,
+      enum: ['daily', 'weekly', 'monthly', 'never'],
+      default: 'never'
+    },
+    todoReminders: {
+      type: Boolean,
+      default: true
+    },
+    todoReminderTime: {
+      type: String,
+      default: '1'
+    },
+    priorityTodosOnly: {
+      type: Boolean,
+      default: false
+    },
+    calendarReminders: {
+      type: Boolean,
+      default: true
+    },
+    calendarReminderTime: {
+      type: String,
+      default: '1'
     }
   },
   autoAttendanceEnabled: {

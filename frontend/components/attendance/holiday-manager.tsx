@@ -32,90 +32,6 @@ export function HolidayManager({ currentSemester, startDate: periodStart, endDat
   const [reason, setReason] = useState<string>("")
   const [isLoading, setIsLoading] = useState(false)
 
-  const months = [
-    { value: "1", label: "January" },
-    { value: "2", label: "February" },
-    { value: "3", label: "March" },
-    { value: "4", label: "April" },
-    { value: "5", label: "May" },
-    { value: "6", label: "June" },
-    { value: "7", label: "July" },
-    { value: "8", label: "August" },
-    { value: "9", label: "September" },
-    { value: "10", label: "October" },
-    { value: "11", label: "November" },
-    { value: "12", label: "December" }
-  ]
-
-  const getValidMonths = () => {
-    if (!startDate || !endDate) return []
-    
-    const startMonth = startDate.getMonth() + 1 // 0-indexed to 1-indexed
-    const endMonth = endDate.getMonth() + 1
-    const startYear = startDate.getFullYear()
-    const endYear = endDate.getFullYear()
-    
-    // If same year, return months between start and end
-    if (startYear === endYear) {
-      return months.filter(m => {
-        const monthNum = parseInt(m.value)
-        return monthNum >= startMonth && monthNum <= endMonth
-      })
-    }
-    
-    // If different years, return all months (academic period spans multiple years)
-    return months
-  }
-
-  const getDaysInMonth = (month: number, year: number) => {
-    return new Date(year, month, 0).getDate()
-  }
-
-  const getValidYears = () => {
-    if (!startDate || !endDate) return []
-    const years = []
-    for (let year = startDate.getFullYear(); year <= endDate.getFullYear(); year++) {
-      years.push(year)
-    }
-    return years
-  }
-
-  const getDaysForSelectedMonth = () => {
-    if (!selectedMonth || !startDate) return []
-    const month = parseInt(selectedMonth)
-    const years = getValidYears()
-    const year = years.length > 0 ? years[0] : new Date().getFullYear()
-    const daysInMonth = getDaysInMonth(month, year)
-    
-    return Array.from({ length: daysInMonth }, (_, i) => ({
-      value: (i + 1).toString(),
-      label: (i + 1).toString()
-    }))
-  }
-
-  const isDateInPast = (day: number, month: number) => {
-    if (!startDate || !endDate) return false
-    
-    const years = getValidYears()
-    if (years.length === 0) return false
-    
-    const holidayDate = new Date(years[0], month - 1, day)
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    
-    return holidayDate < today
-  }
-
-  const isDateInRange = (day: number, month: number) => {
-    if (!startDate || !endDate) return false
-    
-    const years = getValidYears()
-    if (years.length === 0) return false
-    
-    const holidayDate = new Date(years[0], month - 1, day)
-    return holidayDate >= startDate && holidayDate <= endDate
-  }
-
   const addHoliday = async () => {
     if (!startDate) {
       toast({
@@ -206,8 +122,8 @@ export function HolidayManager({ currentSemester, startDate: periodStart, endDat
   }
 
   return (
-    <Card className="h-full flex flex-col overflow-hidden">
-      <CardHeader className="pb-0 pt-3 flex-shrink-0">
+    <Card className="shadow-md hover:shadow-lg transition-all duration-300">
+      <CardHeader className="pb-0 pt-3">
         <CardTitle className="flex items-center gap-2 text-lg font-medium">
           <Calendar className="h-5 w-5" />
           Holiday Management
@@ -216,7 +132,7 @@ export function HolidayManager({ currentSemester, startDate: periodStart, endDat
           Add holidays for {currentSemester ? `Semester ${currentSemester}` : 'current semester'}
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-1.5 flex-1 min-h-0 overflow-hidden pt-3">
+      <CardContent className="space-y-1.5 pt-3">
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1">
             <Label className="text-sm">Start Date</Label>

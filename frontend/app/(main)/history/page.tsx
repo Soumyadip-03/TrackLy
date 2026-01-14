@@ -1,5 +1,4 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { PageHeader } from "@/components/page-header"
 import { AttendanceReport } from "@/components/history/attendance-report"
 import { AttendanceLogs } from "@/components/history/attendance-logs"
 import { PreviousSemesters } from "@/components/history/previous-semesters"

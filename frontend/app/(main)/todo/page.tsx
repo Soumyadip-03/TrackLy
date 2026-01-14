@@ -5,7 +5,7 @@ import { TodoForm, TodoItem } from "@/components/todo/todo-form"
 import { todoService } from "@/lib/services/todo-service"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
-import { format, parseISO } from "date-fns"
+import { format } from "date-fns"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "@/components/ui/use-toast"
 import { Trash2, Edit2 } from "lucide-react"
@@ -22,7 +22,6 @@ import { cn } from "@/lib/utils"
 
 export default function TodoPage() {
   const [todos, setTodos] = useState<TodoItem[]>([])
-  const [isLoading, setIsLoading] = useState(true)
   const [editingTodo, setEditingTodo] = useState<TodoItem | null>(null)
   const [editTitle, setEditTitle] = useState("")
   const [editDescription, setEditDescription] = useState("")
@@ -42,8 +41,6 @@ export default function TodoPage() {
         description: "Failed to load todos",
         variant: "destructive"
       })
-    } finally {
-      setIsLoading(false)
     }
   }
 
@@ -156,40 +153,60 @@ export default function TodoPage() {
     }
   }
 
+  // Check if todo is overdue
+  const isOverdue = (dueDate: string | null, completed: boolean) => {
+    if (!dueDate || completed) return false
+    return new Date(dueDate) < new Date()
+  }
+
+  // Check if todo is due today
+  const isDueToday = (dueDate: string | null) => {
+    if (!dueDate) return false
+    const today = new Date()
+    const due = new Date(dueDate)
+    return today.toDateString() === due.toDateString()
+  }
+
+  // Check if todo is due soon (within reminder time)
+  const isDueSoon = (dueDate: string | null) => {
+    if (!dueDate) return false
+    const settings = JSON.parse(localStorage.getItem('notification_settings') || '{}')
+    const reminderDays = parseInt(settings.todoReminderTime || '1')
+    const due = new Date(dueDate)
+    const reminderDate = new Date()
+    reminderDate.setDate(reminderDate.getDate() + reminderDays)
+    return due <= reminderDate && due >= new Date()
+  }
+
   return (
-    <div className="h-[calc(100vh-4rem)] flex flex-col overflow-hidden">
+    <div className="h-[calc(100vh-4rem)] flex flex-col">
       <div className="py-6 text-center flex-shrink-0">
-        <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">Task Manager</h1>
-        <p className="text-muted-foreground">Organize your work and stay productive</p>
+        <h1 className="text-5xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">Task Manager</h1>
       </div>
       
-      <div className="flex-1 min-h-0 px-4 pb-6">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-6xl mx-auto h-full">
+      <div className="flex-1 overflow-y-auto px-6 pb-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-7xl mx-auto">
           {/* Left: Todo Form */}
-          <div className="flex flex-col h-full">
+          <div className="h-[600px]">
             <ClientOnly>
               <TodoForm />
             </ClientOnly>
           </div>
           
           {/* Right: Todo List */}
-          <div className="flex flex-col h-full">
-            <Card className="h-full shadow-lg border-2 flex flex-col">
-              <CardHeader className="bg-gradient-to-r from-primary/5 to-purple-500/5 border-b flex-shrink-0">
-                <CardTitle className="text-2xl">Your Tasks</CardTitle>
-                <CardDescription>Manage your upcoming tasks and assignments</CardDescription>
+          <div className="h-[600px]">
+            <Card className="shadow-lg border-2 h-full flex flex-col">
+              <CardHeader className="bg-gradient-to-r from-primary/5 to-purple-500/5 border-b pb-4 flex-shrink-0">
+                <CardTitle className="text-2xl font-bold">Your Tasks</CardTitle>
+                <CardDescription className="text-sm">Manage your upcoming tasks and assignments</CardDescription>
               </CardHeader>
-              <CardContent className="pt-6 flex-1 min-h-0 overflow-hidden flex flex-col">
+              <CardContent className="pt-4 overflow-y-auto flex-1">
               <ClientOnly fallback={
                 <div className="flex justify-center items-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                 </div>
               }>
-                {isLoading ? (
-                  <div className="flex justify-center items-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                  </div>
-                ) : todos.length === 0 ? (
+                {todos.length === 0 ? (
                   <div className="text-center py-12">
                     <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
                       <svg className="w-8 h-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -200,15 +217,12 @@ export default function TodoPage() {
                     <p className="text-sm text-muted-foreground mt-1">Add a new task to get started!</p>
                   </div>
                 ) : (
-                  <div className="space-y-4 overflow-y-auto h-full pr-2">
+                  <div className="space-y-3">
                     {todos
                       .sort((a, b) => {
                         if (a.completed !== b.completed) {
                           return a.completed ? 1 : -1
                         }
-                        const priorities = { high: 3, medium: 2, low: 1 }
-                        const priorityA = priorities[a.priority]
-                        const priorityB = priorities[b.priority]
                         
                         if (a.dueDate && b.dueDate) {
                           return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
@@ -218,52 +232,56 @@ export default function TodoPage() {
                           return 1
                         }
                         
-                        return priorityB - priorityA
+                        const priorities = { high: 3, medium: 2, low: 1 }
+                        return priorities[b.priority] - priorities[a.priority]
                       })
                       .map((todo) => (
                         <div 
                           key={todo._id} 
-                          className={`group border-2 rounded-xl p-4 transition-all hover:shadow-md ${
-                            todo.completed ? 'opacity-60 bg-muted/30 border-muted' : 'border-border hover:border-primary/50'
+                          className={`group border rounded-lg p-3 transition-all hover:shadow-md ${
+                            todo.completed ? 'opacity-60 bg-muted/30 border-muted' : 
+                            isOverdue(todo.dueDate, todo.completed) ? 'border-red-500/50 bg-red-50/30 dark:bg-red-950/10' :
+                            isDueToday(todo.dueDate) ? 'border-orange-500/50 bg-orange-50/30 dark:bg-orange-950/10' :
+                            isDueSoon(todo.dueDate) ? 'border-yellow-500/50 bg-yellow-50/30 dark:bg-yellow-950/10' :
+                            'border-border hover:border-primary/50'
                           }`}
                         >
                           <div className="flex items-start gap-3">
                             <Checkbox 
                               checked={todo.completed}
                               onCheckedChange={() => toggleTodo(todo._id)}
-                              className="mt-1"
+                              className="mt-0.5"
                             />
-                            <div className="flex-1 space-y-1">
-                              <div className="flex justify-between">
-                                <h3 className={`font-medium ${todo.completed ? 'line-through text-muted-foreground' : ''}`}>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-2 mb-1">
+                                <h3 className={`font-semibold text-base leading-tight ${todo.completed ? 'line-through text-muted-foreground' : ''}`}>
                                   {todo.title}
                                 </h3>
-                                <Badge className={getPriorityColor(todo.priority)}>
+                                <Badge className={`${getPriorityColor(todo.priority)} text-xs px-2 py-0.5 flex-shrink-0`}>
                                   {todo.priority.charAt(0).toUpperCase() + todo.priority.slice(1)}
                                 </Badge>
                               </div>
                               {todo.description && (
-                                <p className="text-sm text-muted-foreground">{todo.description}</p>
+                                <p className="text-xs text-muted-foreground mb-1 line-clamp-2">{todo.description}</p>
                               )}
                               {todo.dueDate && (
-                                <div className="text-xs text-muted-foreground flex items-center gap-1">
-                                  <span>Due:</span>
-                                  <span className="font-medium">
-                                    {format(new Date(todo.dueDate), 'PPP')}
+                                <div className="text-xs flex items-center gap-1 mt-1">
+                                  <span className={isOverdue(todo.dueDate, todo.completed) ? 'text-red-600 font-medium' : isDueToday(todo.dueDate) ? 'text-orange-600 font-medium' : 'text-muted-foreground'}>
+                                    Due: {format(new Date(todo.dueDate), 'MMMM do, yyyy')}
                                   </span>
                                 </div>
                               )}
                             </div>
-                            <div className="flex gap-1">
+                            <div className="flex gap-1 flex-shrink-0">
                               <Dialog>
                                 <DialogTrigger asChild>
                                   <Button 
                                     variant="ghost" 
                                     size="icon" 
                                     onClick={() => openEditDialog(todo)}
-                                    className="text-muted-foreground hover:text-primary"
+                                    className="h-8 w-8 text-muted-foreground hover:text-primary"
                                   >
-                                    <Edit2 className="h-4 w-4" />
+                                    <Edit2 className="h-3.5 w-3.5" />
                                   </Button>
                                 </DialogTrigger>
                                 <DialogContent>
@@ -352,9 +370,9 @@ export default function TodoPage() {
                                 variant="ghost" 
                                 size="icon" 
                                 onClick={() => deleteTodo(todo._id)} 
-                                className="text-muted-foreground hover:text-destructive"
+                                className="h-8 w-8 text-muted-foreground hover:text-destructive"
                               >
-                                <Trash2 className="h-4 w-4" />
+                                <Trash2 className="h-3.5 w-3.5" />
                               </Button>
                             </div>
                           </div>
@@ -366,9 +384,9 @@ export default function TodoPage() {
               </ClientOnly>
             </CardContent>
           </Card>
+          </div>
         </div>
       </div>
-    </div>
     </div>
   )
 }

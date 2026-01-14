@@ -22,7 +22,6 @@ export function AcademicPeriodSelector() {
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [currentSemester, setCurrentSemester] = useState<string>("1");
-  const [userBaseSemester, setUserBaseSemester] = useState<number>(1);
   const [maxSemester, setMaxSemester] = useState<number>(8);
   const [isPeriodSaved, setIsPeriodSaved] = useState<boolean>(false);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -39,7 +38,6 @@ export function AcademicPeriodSelector() {
     try {
       const currentSem = user?.currentSemester || 1;
       
-      setUserBaseSemester(currentSem);
       setCurrentSemester(currentSem.toString());
       
       const response = await fetchWithAuth(`/academic-period/${currentSem}`);
@@ -207,10 +205,10 @@ export function AcademicPeriodSelector() {
   }
   
   return (
-    <div className="w-full h-full overflow-hidden">
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-2 h-full">
-        <div className="space-y-1.5 h-full flex flex-col overflow-hidden">
-          <Card className="shadow-md hover:shadow-lg transition-all duration-300 flex-shrink-0">
+    <div className="w-full">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
+        <div className="space-y-1.5 flex flex-col">
+          <Card className="shadow-md hover:shadow-lg transition-all duration-300">
           <CardHeader className="pb-0 pt-3">
             <CardTitle className="text-lg font-medium flex items-center gap-2">
               <GraduationCap className="h-5 w-5 text-primary" />
@@ -315,18 +313,16 @@ export function AcademicPeriodSelector() {
           </Card>
           
           {isPeriodSaved && (
-            <div className="flex-1 min-h-0 overflow-hidden">
-              <HolidayManager 
-                currentSemester={currentSemester}
-                startDate={startDate}
-                endDate={endDate}
-                onHolidayAdded={handleHolidayAdded}
-              />
-            </div>
+            <HolidayManager 
+              currentSemester={currentSemester}
+              startDate={startDate}
+              endDate={endDate}
+              onHolidayAdded={handleHolidayAdded}
+            />
           )}
         </div>
         
-        <div className="w-full h-full overflow-hidden">
+        <div className="w-full">
           {isPeriodSaved ? (
             <HolidayList 
               key={refreshKey}
@@ -334,9 +330,9 @@ export function AcademicPeriodSelector() {
               onRefresh={() => setRefreshKey(prev => prev + 1)}
             />
           ) : (
-            <Card className="h-full">
+            <Card>
               <CardContent className="pt-6">
-                <div className="flex items-center justify-center h-full min-h-[200px] text-muted-foreground">
+                <div className="flex items-center justify-center min-h-[200px] text-muted-foreground">
                   <div className="text-center">
                     <CalendarDays className="h-12 w-12 mx-auto mb-4 opacity-50" />
                     <p>Please save your academic period first to manage holidays</p>

@@ -171,7 +171,16 @@ router.put('/profile', protect, [
 // Update notification preferences
 router.put('/notification-preferences', protect, async (req, res) => {
   try {
-    const { attendanceReminders, attendanceThreshold, attendanceReminderFrequency } = req.body;
+    const { 
+      attendanceReminders, 
+      attendanceThreshold, 
+      attendanceReminderFrequency,
+      todoReminders,
+      todoReminderTime,
+      priorityTodosOnly,
+      calendarReminders,
+      calendarReminderTime
+    } = req.body;
     
     const user = await User.findById(req.user.id);
     
@@ -187,6 +196,21 @@ router.put('/notification-preferences', protect, async (req, res) => {
     }
     if (attendanceReminderFrequency !== undefined) {
       user.notificationPreferences.attendanceReminderFrequency = attendanceReminderFrequency;
+    }
+    if (todoReminders !== undefined) {
+      user.notificationPreferences.todoReminders = todoReminders;
+    }
+    if (todoReminderTime !== undefined) {
+      user.notificationPreferences.todoReminderTime = todoReminderTime;
+    }
+    if (priorityTodosOnly !== undefined) {
+      user.notificationPreferences.priorityTodosOnly = priorityTodosOnly;
+    }
+    if (calendarReminders !== undefined) {
+      user.notificationPreferences.calendarReminders = calendarReminders;
+    }
+    if (calendarReminderTime !== undefined) {
+      user.notificationPreferences.calendarReminderTime = calendarReminderTime;
     }
     
     await user.save();

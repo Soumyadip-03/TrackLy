@@ -1,20 +1,17 @@
 "use client"
 
 import { useAuth } from '@/lib/auth-context'
-import { WeeklyAttendanceChart } from "@/components/dashboard/weekly-attendance-chart"
 import { AttendanceReport } from "@/components/history/attendance-report"
 import { TodaySchedule } from "@/components/dashboard/today-schedule"
 import { UpcomingTasks } from "@/components/dashboard/upcoming-tasks"
+import { SubjectAttendanceAnalytics } from "@/components/dashboard/subject-attendance-analytics"
 import { PageHeader } from "@/components/page-header"
 import { Card, CardContent } from "@/components/ui/card"
-import { GraduationCap, BookOpen, AlertCircle, Check, X, ArrowUp, ArrowDown, CheckCircle } from "lucide-react"
+import { GraduationCap, BookOpen, Check, X, ArrowUp, ArrowDown, CheckCircle } from "lucide-react"
 import { format } from "date-fns"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { getFromLocalStorage, saveToLocalStorage } from "@/lib/storage-utils"
-import { FORCE_RECOMPILE } from "./force-recompile.js"
-import { recordSuccessfulLogin } from "@/lib/auth-utils"
-import { calculateAttendanceExcludingHolidays } from "@/lib/attendance-utils"
 
 interface AttendanceRecord {
   id: string;
@@ -102,8 +99,8 @@ export default function DashboardPage() {
   }, [isLoading, user, router])
 
   // Get the user's first name for greeting
-  const firstName = user?.user_metadata?.full_name 
-    ? user.user_metadata.full_name.split(' ')[0] 
+  const firstName = user?.name 
+    ? user.name.split(' ')[0] 
     : 'there'
     
   // Function to show welcome notification
@@ -422,9 +419,9 @@ export default function DashboardPage() {
 
 
   return (
-    <div className="container py-10">
+    <div className="container pt-4">
 
-      <div className="container py-6 space-y-8">
+      <div className="container space-y-8">
         <div className="flex justify-between items-center">
           <PageHeader 
             title="Dashboard" 
@@ -536,9 +533,9 @@ export default function DashboardPage() {
 
             {/* Main Content Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Left Column - 2/3 width - Placeholder for new component */}
+              {/* Left Column - 2/3 width */}
               <div className="lg:col-span-2 space-y-6">
-                {/* Add your new component here */}
+                <SubjectAttendanceAnalytics />
               </div>
 
               {/* Right Column - 1/3 width */}

@@ -97,24 +97,24 @@ export function HolidayList({ currentSemester, onRefresh }: HolidayListProps) {
   })
 
   return (
-    <Card className="h-full flex flex-col overflow-hidden">
-      <CardHeader className="pb-2 flex-shrink-0">
-        <CardTitle className="flex items-center gap-2">
+    <Card className="shadow-md hover:shadow-lg transition-all duration-300">
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-lg font-medium">
           <Calendar className="h-5 w-5" />
           Holiday List
         </CardTitle>
-        <CardDescription>
+        <CardDescription className="text-sm">
           Manage holidays for Semester {currentSemester}
         </CardDescription>
       </CardHeader>
-      <CardContent className="flex-1 min-h-0 overflow-hidden">
+      <CardContent>
         {sortedHolidays.length === 0 ? (
           <div className="text-center py-4 text-muted-foreground">
             <Calendar className="h-8 w-8 mx-auto mb-2 opacity-50" />
             <p>No holidays added yet</p>
           </div>
         ) : (
-          <div className="h-full overflow-y-auto space-y-2 pr-2">
+          <div className="max-h-[510px] overflow-y-auto space-y-2 pr-2">
             {sortedHolidays.map((holiday) => {
               const isPast = isDateInPast(holiday.day, holiday.month, holiday.year)
               return (
