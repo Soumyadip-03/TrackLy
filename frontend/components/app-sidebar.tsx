@@ -129,7 +129,7 @@ export function AppSidebar() {
         }`}
       >
         {/* Header */}
-        <div className="border-b p-3 flex items-center justify-between gap-4 overflow-hidden">
+        <div className="border-b p-3 flex items-center justify-between gap-4 overflow-hidden relative">
           <div className="flex items-center gap-2 flex-1 min-w-0">
             <div className="relative">
               <div className="absolute inset-0 bg-gradient-to-r from-primary/20 to-purple-500/20 rounded-full animate-pulse-slow"></div>
@@ -148,19 +148,21 @@ export function AppSidebar() {
               )}
             </ClientOnly>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 rounded-full hover:bg-primary/10 hover:text-primary transition-all duration-300 flex-shrink-0"
-            onClick={() => setCollapsed(!collapsed)}
-          >
-            {collapsed ? (
-              <ChevronRight className="h-4 w-4" />
-            ) : (
-              <ChevronLeft className="h-4 w-4" />
-            )}
-          </Button>
         </div>
+
+        {/* Toggle Button - Positioned on border */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="absolute top-3 -right-3 h-6 w-6 rounded-full bg-background border-2 border-border shadow-lg hover:border-primary hover:shadow-primary/50 hover:scale-110 transition-all duration-200 z-50"
+          onClick={() => setCollapsed(!collapsed)}
+        >
+          {collapsed ? (
+            <ChevronRight className="h-3 w-3 text-primary" />
+          ) : (
+            <ChevronLeft className="h-3 w-3 text-primary" />
+          )}
+        </Button>
 
         {/* Menu */}
         <div className="flex-1 overflow-y-auto py-2">

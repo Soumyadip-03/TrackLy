@@ -153,18 +153,24 @@ export default function TodoPage() {
     }
   }
 
-  // Check if todo is overdue
+  // Check if todo is overdue (using UTC normalized dates)
   const isOverdue = (dueDate: string | null, completed: boolean) => {
     if (!dueDate || completed) return false
-    return new Date(dueDate) < new Date()
+    const now = new Date()
+    now.setHours(0, 0, 0, 0)
+    const due = new Date(dueDate)
+    due.setHours(0, 0, 0, 0)
+    return due < now
   }
 
   // Check if todo is due today
   const isDueToday = (dueDate: string | null) => {
     if (!dueDate) return false
-    const today = new Date()
+    const now = new Date()
+    now.setHours(0, 0, 0, 0)
     const due = new Date(dueDate)
-    return today.toDateString() === due.toDateString()
+    due.setHours(0, 0, 0, 0)
+    return now.getTime() === due.getTime()
   }
 
   // Check if todo is due soon (within reminder time)
@@ -172,19 +178,18 @@ export default function TodoPage() {
     if (!dueDate) return false
     const settings = JSON.parse(localStorage.getItem('notification_settings') || '{}')
     const reminderDays = parseInt(settings.todoReminderTime || '1')
+    const now = new Date()
+    now.setHours(0, 0, 0, 0)
     const due = new Date(dueDate)
-    const reminderDate = new Date()
+    due.setHours(0, 0, 0, 0)
+    const reminderDate = new Date(now)
     reminderDate.setDate(reminderDate.getDate() + reminderDays)
-    return due <= reminderDate && due >= new Date()
+    return due <= reminderDate && due >= now
   }
 
   return (
-    <div className="h-[calc(100vh-4rem)] flex flex-col">
-      <div className="py-6 text-center flex-shrink-0">
-        <h1 className="text-5xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">Task Manager</h1>
-      </div>
-      
-      <div className="flex-1 overflow-y-auto px-6 pb-6">
+    <div className="h-[calc(100vh-4rem)] flex items-center">
+      <div className="w-full overflow-y-auto px-6 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-7xl mx-auto">
           {/* Left: Todo Form */}
           <div className="h-[600px]">

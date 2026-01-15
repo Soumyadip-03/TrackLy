@@ -15,66 +15,10 @@ const dailyTodoReminders = schedule.scheduleJob('0 9 * * *', async () => {
       return;
     }
     
-    const users = await User.find({
-      'notificationPreferences.todoReminders': true
-    });
+    const { checkTodoReminders } = require('../services/todoNotificationService');
+    await checkTodoReminders();
     
-    let totalGenerated = 0;
-    
-    for (const user of users) {
-      const Todo = require('../models/Todo');
-      const todoReminderDays = parseInt(user.notificationPreferences?.todoReminderTime || '1');
-      const priorityOnly = user.notificationPreferences?.priorityTodosOnly || false;
-      
-      const now = new Date();
-      
-      let todoQuery = { 
-        user: user._id, 
-        completed: false,
-        dueDate: { $ne: null }
-      };
-      
-      if (priorityOnly) {
-        todoQuery.priority = 'high';
-      }
-      
-      const todos = await Todo.find(todoQuery);
-      
-      for (const todo of todos) {
-        if (!todo.dueDate) continue;
-        
-        const dueDate = new Date(todo.dueDate);
-        const diffTime = dueDate.getTime() - now.getTime();
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        
-        const existingNotif = await Notification.findOne({
-          user: user._id,
-          relatedTo: todo._id,
-          onModel: 'Todo',
-          createdAt: { $gte: new Date(now.getTime() - 24 * 60 * 60 * 1000) }
-        });
-        
-        if (!existingNotif && diffDays <= todoReminderDays && diffDays >= 0) {
-          const priority = diffDays === 0 ? 'high' : (diffDays === 1 ? 'medium' : 'low');
-          const type = diffDays === 0 ? 'alert' : 'reminder';
-          
-          await Notification.create({
-            user: user._id,
-            title: diffDays === 0 ? 'Task Due Today' : 'Upcoming Task',
-            message: `"${todo.title}" is due ${diffDays === 0 ? 'today' : 'in ' + diffDays + ' day' + (diffDays > 1 ? 's' : '')}.`,
-            type,
-            category: 'todo',
-            priority,
-            relatedTo: todo._id,
-            onModel: 'Todo'
-          });
-          
-          totalGenerated++;
-        }
-      }
-    }
-    
-    console.log(`Daily todo reminders: Generated ${totalGenerated} notifications for ${users.length} users`);
+    console.log('Daily todo reminders check completed');
   } catch (error) {
     console.error('Error in daily todo reminders:', error);
   }

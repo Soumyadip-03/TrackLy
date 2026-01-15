@@ -3,13 +3,39 @@ const router = express.Router();
 const { protect } = require('../middleware/auth');
 const { getUserDbConnection, initializeUserDatabase } = require('../utils/dbManager');
 
+// Normalize date to UTC midnight
+const normalizeToUTC = (date) => {
+  const d = new Date(date);
+  return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+};
+
+// Update overdue status for todos
+const updateOverdueStatus = async (todos) => {
+  const now = normalizeToUTC(new Date());
+  
+  for (const todo of todos) {
+    if (todo.dueDate && !todo.completed) {
+      const dueDate = normalizeToUTC(todo.dueDate);
+      todo.isOverdue = dueDate < now;
+    } else {
+      todo.isOverdue = false;
+    }
+  }
+  
+  return todos;
+};
+
 // @route   GET /api/todo
 // @desc    Get all todos for the logged-in user
 // @access  Private
 router.get('/', protect, async (req, res) => {
   try {
     const { models } = initializeUserDatabase(req.user._id);
-    const todos = await models.Todo.find({ user: req.user._id }).sort({ createdAt: -1 });
+    let todos = await models.Todo.find({ user: req.user._id }).sort({ createdAt: -1 });
+    
+    // Update overdue status
+    todos = await updateOverdueStatus(todos);
+    await Promise.all(todos.map(todo => todo.save()));
     
     res.status(200).json({
       success: true,

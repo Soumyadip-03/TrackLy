@@ -7,78 +7,94 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { toast } from "@/components/ui/use-toast"
-import { getFromLocalStorage, saveToLocalStorage } from "@/lib/storage-utils"
+import { todoService } from "@/lib/services/todo-service"
+import { format } from "date-fns"
 
 interface TodoItem {
-  id: string
-  date: string
-  subject: string
-  time: string
+  _id: string
   title: string
   description: string
+  dueDate: string | null
   completed: boolean
-  completedAt?: string
+  priority: "low" | "medium" | "high"
+  createdAt: string
+  updatedAt: string
 }
 
 export function TodoList() {
   const [todos, setTodos] = useState<TodoItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
-  // Load todos from localStorage
-  useEffect(() => {
-    const loadTodos = () => {
-      const savedTodos = getFromLocalStorage<TodoItem[]>('todos', []);
-      setTodos(savedTodos);
-      setIsLoading(false);
-    };
-    
-    loadTodos();
-  }, []);
-
-  const handleToggleComplete = (id: string) => {
-    setTodos((prev) => {
-      const updatedTodos = prev.map((todo) => {
-        if (todo.id === id) {
-          return { 
-            ...todo, 
-            completed: !todo.completed,
-            completedAt: !todo.completed ? new Date().toISOString() : undefined
-          };
-        }
-        return todo;
-      });
-      
-      // Save to localStorage
-      saveToLocalStorage('todos', updatedTodos);
-      
-      return updatedTodos;
-    });
-
-    const todo = todos.find((t) => t.id === id)
-    if (todo) {
+  // Load todos from database
+  const loadTodos = async () => {
+    try {
+      const data = await todoService.getAll()
+      setTodos(data)
+    } catch (error) {
+      console.error("Error loading todos:", error)
       toast({
-        title: todo.completed ? "Task Incomplete" : "Task Completed",
-        description: `"${todo.title}" marked as ${todo.completed ? "incomplete" : "complete"}.`,
+        title: "Error",
+        description: "Failed to load todos",
+        variant: "destructive"
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadTodos()
+    
+    const handleTodosUpdated = () => {
+      loadTodos()
+    }
+    
+    window.addEventListener('todosUpdated', handleTodosUpdated)
+    
+    return () => {
+      window.removeEventListener('todosUpdated', handleTodosUpdated)
+    }
+  }, [])
+
+  const handleToggleComplete = async (id: string) => {
+    try {
+      await todoService.toggle(id)
+      await loadTodos()
+      
+      const todo = todos.find((t) => t._id === id)
+      if (todo) {
+        toast({
+          title: todo.completed ? "Task marked incomplete" : "Task completed",
+          description: todo.title,
+        })
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update todo",
+        variant: "destructive"
       })
     }
   }
 
-  const handleDelete = (id: string) => {
-    const todo = todos.find((t) => t.id === id)
+  const handleDelete = async (id: string) => {
+    const todo = todos.find((t) => t._id === id)
     
-    setTodos((prev) => {
-      const updatedTodos = prev.filter((todo) => todo.id !== id);
+    try {
+      await todoService.delete(id)
+      await loadTodos()
       
-      // Save to localStorage
-      saveToLocalStorage('todos', updatedTodos);
-      
-      return updatedTodos;
-    });
-
-    if (todo) {
+      if (todo) {
+        toast({
+          title: "Task Deleted",
+          description: `"${todo.title}" has been removed from your to-do list.`,
+        })
+      }
+    } catch (error) {
       toast({
-        title: "Task Deleted",
-        description: `"${todo.title}" has been removed from your to-do list.`,
+        title: "Error",
+        description: "Failed to delete todo",
+        variant: "destructive"
       })
     }
   }
@@ -88,16 +104,21 @@ export function TodoList() {
   const completedTodos = todos.filter((todo) => todo.completed)
 
   // Sort todos by date
-  const sortedPendingTodos = [...pendingTodos].sort((a, b) => 
-    new Date(a.date).getTime() - new Date(b.date).getTime()
-  )
+  const sortedPendingTodos = [...pendingTodos].sort((a, b) => {
+    if (a.dueDate && b.dueDate) {
+      return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
+    }
+    if (a.dueDate) return -1
+    if (b.dueDate) return 1
+    return 0
+  })
   const sortedCompletedTodos = [...completedTodos].sort((a, b) => 
-    new Date(b.completedAt || b.date).getTime() - new Date(a.completedAt || a.date).getTime()
+    new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
   )
   
-  // Navigate to create todo page
+  // Navigate to todo page
   const handleAddTodo = () => {
-    window.location.href = '/todo/create';
+    window.location.href = '/todo';
   }
 
   if (isLoading) {
@@ -149,26 +170,26 @@ export function TodoList() {
             <TabsContent value="pending" className="space-y-4 mt-4">
               {sortedPendingTodos.length > 0 ? (
                 sortedPendingTodos.map((todo) => (
-                  <div key={todo.id} className="flex items-start space-x-3 p-3 rounded-md border">
+                  <div key={todo._id} className="flex items-start space-x-3 p-3 rounded-md border">
                     <Checkbox
                       checked={todo.completed}
-                      onCheckedChange={() => handleToggleComplete(todo.id)}
+                      onCheckedChange={() => handleToggleComplete(todo._id)}
                       className="mt-1"
                     />
                     <div className="flex-1">
                       <div className="flex items-center justify-between">
                         <span className="font-medium">{todo.title}</span>
-                        <span className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary">{todo.subject}</span>
+                        <span className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary">{todo.priority}</span>
                       </div>
                       <p className="text-sm text-muted-foreground mt-1">{todo.description}</p>
-                      <div className="flex items-center text-xs text-muted-foreground mt-2">
-                        <Clock className="h-3 w-3 mr-1" />
-                        <span>
-                          {new Date(todo.date).toLocaleDateString()} at {todo.time}
-                        </span>
-                      </div>
+                      {todo.dueDate && (
+                        <div className="flex items-center text-xs text-muted-foreground mt-2">
+                          <Clock className="h-3 w-3 mr-1" />
+                          <span>Due: {format(new Date(todo.dueDate), 'MMM d, yyyy')}</span>
+                        </div>
+                      )}
                     </div>
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(todo.id)}>
+                    <Button variant="ghost" size="icon" onClick={() => handleDelete(todo._id)}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
@@ -181,26 +202,24 @@ export function TodoList() {
             <TabsContent value="completed" className="space-y-4 mt-4">
               {sortedCompletedTodos.length > 0 ? (
                 sortedCompletedTodos.map((todo) => (
-                  <div key={todo.id} className="flex items-start space-x-3 p-3 rounded-md border bg-muted/50">
+                  <div key={todo._id} className="flex items-start space-x-3 p-3 rounded-md border bg-muted/50">
                     <Checkbox
                       checked={todo.completed}
-                      onCheckedChange={() => handleToggleComplete(todo.id)}
+                      onCheckedChange={() => handleToggleComplete(todo._id)}
                       className="mt-1"
                     />
                     <div className="flex-1">
                       <div className="flex items-center justify-between">
                         <span className="font-medium line-through">{todo.title}</span>
-                        <span className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary">{todo.subject}</span>
+                        <span className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary">{todo.priority}</span>
                       </div>
                       <p className="text-sm text-muted-foreground mt-1 line-through">{todo.description}</p>
                       <div className="flex items-center text-xs text-muted-foreground mt-2">
                         <CheckSquare className="h-3 w-3 mr-1" />
-                        <span>Completed on {todo.completedAt 
-                          ? new Date(todo.completedAt).toLocaleDateString()
-                          : new Date().toLocaleDateString()}</span>
+                        <span>Completed on {format(new Date(todo.updatedAt), 'MMM d, yyyy')}</span>
                       </div>
                     </div>
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(todo.id)}>
+                    <Button variant="ghost" size="icon" onClick={() => handleDelete(todo._id)}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>

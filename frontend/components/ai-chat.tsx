@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Bot, Send, X, Maximize2, Minimize2 } from "lucide-react"
+import { Send, X, Maximize2, Minimize2, Sparkles } from "lucide-react"
 import { sendChatMessage } from "@/lib/api"
 
 type Message = {
@@ -176,14 +176,19 @@ export function AIChat() {
       {!isOpen && (
         <Button
           onClick={toggleChat}
-          className="fixed bottom-6 right-6 rounded-full p-4 shadow-lg transition-all hover:scale-110 ai-chatbox-button group z-50"
+          className="fixed bottom-5 right-5 rounded-full p-0 shadow-2xl transition-all hover:scale-110 ai-chatbox-button group z-50 w-16 h-16 bg-gradient-to-br from-purple-600 via-pink-500 to-orange-500"
         >
-          <div className="relative">
-            <Bot className="h-6 w-6 group-hover:animate-bounce" />
-            <span className="absolute -top-1 -right-1 flex h-3 w-3">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-primary"></span>
-            </span>
+          <div className="relative w-full h-full flex items-center justify-center">
+            <svg className="w-10 h-10 group-hover:rotate-6 transition-transform" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="12" cy="12" r="9" fill="white" opacity="0.95"/>
+              <path d="M12 8V12L14.5 14.5" stroke="#a855f7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <circle cx="12" cy="12" r="7" stroke="#a855f7" strokeWidth="1.5" fill="none"/>
+              <circle cx="12" cy="5" r="0.8" fill="#a855f7"/>
+              <circle cx="12" cy="19" r="0.8" fill="#a855f7"/>
+              <circle cx="5" cy="12" r="0.8" fill="#a855f7"/>
+              <circle cx="19" cy="12" r="0.8" fill="#a855f7"/>
+            </svg>
+            <Sparkles className="absolute top-0 right-0 h-5 w-5 text-yellow-300 animate-pulse" />
           </div>
         </Button>
       )}
@@ -197,9 +202,11 @@ export function AIChat() {
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 ai-chatbox-header">
             <CardTitle className="text-md font-medium flex items-center">
-              <Bot className={`mr-2 h-5 w-5 ${!isError ? "text-primary animate-pulse" : "text-muted-foreground"}`} />
-              <span className={isError ? "text-destructive" : ""}>
-                {isError ? "Using Local AI" : "AI Assistant"}
+              <div className="mr-2 w-8 h-8 rounded-full bg-gradient-to-br from-purple-600 to-pink-500 flex items-center justify-center">
+                <Sparkles className="w-4 h-4 text-white" />
+              </div>
+              <span className={isError ? "text-destructive" : "font-semibold"}>
+                {isError ? "Using Local AI" : "TrackLy AI"}
               </span>
             </CardTitle>
             <div className="flex space-x-2">

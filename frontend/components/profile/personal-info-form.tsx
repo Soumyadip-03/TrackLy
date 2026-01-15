@@ -53,24 +53,29 @@ export function PersonalInfoForm({ onUpdateAction }: PersonalInfoFormProps = {})
       }
       
       try {
+        // Always fetch fresh from database
         const response = await fetchWithAuth('/auth/me');
         if (response.ok) {
           const result = await response.json();
           const data = result.data || result;
           
-          console.log('Profile data loaded:', data);
-          console.log('Profile picture path:', data.profilePicture);
-          
-          const picturePath = data.profilePicture ? 
-            (data.profilePicture.startsWith('/') ? data.profilePicture : `/${data.profilePicture}`) : "";
+          console.log('Profile data loaded from DB:', data);
+          console.log('Profile picture from DB:', data.profilePicture);
           
           setProfileData({
             name: data.name || "",
             email: data.email || "",
             studentId: data.studentId || "",
             currentSemester: data.currentSemester || 1,
-            profilePicture: picturePath,
+            profilePicture: data.profilePicture || "",
           });
+          
+          // Update localStorage with fresh data
+          const storedUser = localStorage.getItem('trackly_user');
+          if (storedUser) {
+            const updatedUser = { ...JSON.parse(storedUser), ...data };
+            localStorage.setItem('trackly_user', JSON.stringify(updatedUser));
+          }
           
           if (data.role === 'admin') {
             setIsAdmin(true);
@@ -141,6 +146,7 @@ export function PersonalInfoForm({ onUpdateAction }: PersonalInfoFormProps = {})
         setPreviewUrl("");
         setSelectedFile(null);
         
+        // Update localStorage
         const storedUser = localStorage.getItem('trackly_user');
         if (storedUser) {
           const updatedUser = { ...JSON.parse(storedUser) };
@@ -149,6 +155,8 @@ export function PersonalInfoForm({ onUpdateAction }: PersonalInfoFormProps = {})
         }
         
         window.dispatchEvent(new Event('profilePictureUpdated'));
+        window.dispatchEvent(new Event('userUpdated'));
+        
         toast.success('Profile picture removed');
       } else {
         toast.error('Failed to remove profile picture');
@@ -183,19 +191,35 @@ export function PersonalInfoForm({ onUpdateAction }: PersonalInfoFormProps = {})
 
         const result = await response.json();
         const newProfilePicture = result.profilePicture;
-        const formattedPath = newProfilePicture.startsWith('/') ? newProfilePicture : `/${newProfilePicture}`;
         
-        setProfileData(prev => ({ ...prev, profilePicture: formattedPath }));
+        // Reload profile data from database
+        const profileResponse = await fetchWithAuth('/auth/me');
+        if (profileResponse.ok) {
+          const profileResult = await profileResponse.json();
+          const data = profileResult.data || profileResult;
+          
+          setProfileData({
+            name: data.name || "",
+            email: data.email || "",
+            studentId: data.studentId || "",
+            currentSemester: data.currentSemester || 1,
+            profilePicture: data.profilePicture || "",
+          });
+          
+          // Update localStorage
+          const storedUser = localStorage.getItem('trackly_user');
+          if (storedUser) {
+            const updatedUser = { ...JSON.parse(storedUser), profilePicture: data.profilePicture };
+            localStorage.setItem('trackly_user', JSON.stringify(updatedUser));
+          }
+        }
+        
         setSelectedFile(null);
         setPreviewUrl("");
         
-        const storedUser = localStorage.getItem('trackly_user');
-        if (storedUser) {
-          const updatedUser = { ...JSON.parse(storedUser), profilePicture: formattedPath };
-          localStorage.setItem('trackly_user', JSON.stringify(updatedUser));
-        }
-        
+        // Update auth context
         window.dispatchEvent(new Event('profilePictureUpdated'));
+        window.dispatchEvent(new Event('userUpdated'));
         
         setHasChanges(false);
         toast.success('Profile picture updated successfully');
@@ -252,7 +276,7 @@ export function PersonalInfoForm({ onUpdateAction }: PersonalInfoFormProps = {})
             <div className="flex-1">
               <h3 className="font-semibold text-lg">{profileData.name}</h3>
               <p className="text-sm text-muted-foreground">{profileData.email}</p>
-              {(profilePictureUrl || previewUrl) && (
+              {(profileData.profilePicture || previewUrl) && (
                 <Button
                   variant="ghost"
                   size="sm"

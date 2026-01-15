@@ -7,7 +7,9 @@ export function useProfilePicture(profilePicture?: string) {
   useEffect(() => {
     if (profilePicture) {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000'
-      const url = `${apiUrl}${profilePicture}?t=${refreshKey}`
+      // Ensure profilePicture starts with /
+      const path = profilePicture.startsWith('/') ? profilePicture : `/${profilePicture}`
+      const url = `${apiUrl}${path}?t=${refreshKey}`
       console.log('useProfilePicture: Setting picture URL:', url);
       setPictureUrl(url)
     } else {

@@ -189,16 +189,27 @@ export function AcademicPeriodSelector() {
           <Card className="shadow-md">
             <CardHeader>
               <CardTitle className="text-lg font-medium flex items-center gap-2">
-                <Calendar className="h-5 w-5 text-primary" />
+                <GraduationCap className="h-5 w-5 text-primary" />
                 <span>Academic Period</span>
               </CardTitle>
               <CardDescription>Set the start and end dates of your academic period</CardDescription>
             </CardHeader>
-            <CardContent className="flex justify-center py-4">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+            <CardContent className="flex justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
             </CardContent>
           </Card>
-          <Card className="w-full h-full"></Card>
+          <Card className="shadow-md">
+            <CardHeader>
+              <CardTitle className="text-lg font-medium flex items-center gap-2">
+                <CalendarDays className="h-5 w-5 text-primary" />
+                <span>Holidays</span>
+              </CardTitle>
+              <CardDescription>Loading...</CardDescription>
+            </CardHeader>
+            <CardContent className="flex justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     );

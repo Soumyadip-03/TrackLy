@@ -100,7 +100,6 @@ app.use('/api/auto-attendance', require('./routes/autoAttendance'));
 app.use('/api/todo', require('./routes/todo'));
 app.use('/api/notification', require('./routes/notification'));
 app.use('/api/chatbot', require('./routes/chatbot'));
-app.use('/api/uploads', require('./routes/uploads'));
 app.use('/api/project', require('./routes/project'));
 app.use('/api/holidays', require('./routes/holiday'));
 app.use('/api/academic-period', require('./routes/academicPeriod'));

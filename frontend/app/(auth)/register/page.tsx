@@ -7,7 +7,6 @@ import { Eye, EyeOff } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
-import { AuthMessage } from "@/components/auth/auth-message"
 import { useAuth } from '@/lib/auth-context'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
@@ -24,49 +23,31 @@ export default function RegisterPage() {
   const [courseDuration, setCourseDuration] = useState<number>(3)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null)
   const [isLoading, setIsLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
-    setMessage(null)
 
     try {
       if (!name || !email || !studentId || !password || !confirmPassword) {
-        setMessage({
-          text: "Please fill in all required fields",
-          type: "error",
-        })
+        toast.error("Please fill in all required fields")
         return
       }
 
       if (password !== confirmPassword) {
-        setMessage({
-          text: "Passwords don't match",
-          type: "error",
-        })
+        toast.error("Passwords don't match")
         return
       }
 
       if (password.length < 6) {
-        setMessage({
-          text: "Password must be at least 6 characters long",
-          type: "error",
-        })
+        toast.error("Password must be at least 6 characters long")
         return
       }
 
       await signUp(email, password, name, studentId, courseDuration)
       
-      setMessage({
-        text: "Account created successfully! Redirecting to login...",
-        type: "success",
-      })
-
-      toast.success("Account created successfully!", {
-        duration: 5000
-      })
+      toast.success("Account created successfully!", { duration: 5000 })
 
       setTimeout(() => {
         router.push(`/login?status=account_created&email=${encodeURIComponent(email)}`)
@@ -74,15 +55,7 @@ export default function RegisterPage() {
     } catch (error: any) {
       console.error('Registration Error:', error)
       const errorMessage = error?.message || 'Failed to register. Please try again.'
-      
-      toast.error(errorMessage, {
-        duration: 5000
-      })
-      
-      setMessage({
-        text: errorMessage,
-        type: "error",
-      })
+      toast.error(errorMessage, { duration: 5000 })
     } finally {
       setIsLoading(false)
     }
@@ -90,23 +63,13 @@ export default function RegisterPage() {
 
   return (
     <div className="container flex items-center justify-center min-h-screen py-6">
-      <Card className="w-full max-w-md">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Create an Account</CardTitle>
+      <Card className="w-full max-w-md shadow-2xl border-2 border-primary/20">
+        <CardHeader className="pb-2 bg-gradient-to-r from-primary/5 to-purple-500/5 border-b">
+          <CardTitle className="text-2xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">Create an Account</CardTitle>
           <CardDescription className="text-xs">Sign up for TrackLy to start tracking your attendance</CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-1.5 max-h-[55vh] overflow-y-auto py-3">
-            {message && (
-              <AuthMessage
-                message={message.text}
-                type={message.type}
-                visible={true}
-                autoHideDuration={5000}
-                onDismiss={() => setMessage(null)}
-              />
-            )}
-            
             <div className="space-y-0.5">
               <Label htmlFor="name" className="text-xs">Full Name</Label>
               <Input
@@ -213,10 +176,10 @@ export default function RegisterPage() {
               </div>
             </div>
           </CardContent>
-          <CardFooter className="flex flex-col space-y-1.5 pt-2 pb-3">
+          <CardFooter className="flex flex-col space-y-1.5 pt-2 pb-3 border-t bg-muted/20">
             <Button 
               type="submit" 
-              className="w-full h-8 text-xs bg-gradient-to-r from-primary to-purple-500 hover:from-primary/90 hover:to-purple-500/90 text-white"
+              className="w-full h-9 text-sm bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90 transition-all duration-300"
               disabled={isLoading}
             >
               {isLoading ? 'Creating Account...' : 'Create Account'}

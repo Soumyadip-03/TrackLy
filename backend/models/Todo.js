@@ -30,6 +30,14 @@ const TodoSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  isOverdue: {
+    type: Boolean,
+    default: false
+  },
+  overdueNotificationSent: {
+    type: Date,
+    default: null
+  },
   createdAt: {
     type: Date,
     default: Date.now

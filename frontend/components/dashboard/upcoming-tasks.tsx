@@ -69,8 +69,10 @@ export function UpcomingTasks({ todos: propTodos }: UpcomingTasksProps) {
         
         if (sortedTodos.length > 0 && sortedTodos[0].dueDate) {
           const taskDate = new Date(sortedTodos[0].dueDate);
+          taskDate.setHours(0, 0, 0, 0);
           const today = new Date();
-          const days = differenceInDays(taskDate, today);
+          today.setHours(0, 0, 0, 0);
+          const days = Math.ceil((taskDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
           
           nextTask = sortedTodos[0].title;
           priority = sortedTodos[0].priority;
@@ -81,7 +83,7 @@ export function UpcomingTasks({ todos: propTodos }: UpcomingTasksProps) {
           } else if (days > 0) {
             daysRemaining = `Due in ${days} days`;
           } else {
-            daysRemaining = "Overdue";
+            daysRemaining = `${Math.abs(days)} days overdue`;
           }
         }
         
