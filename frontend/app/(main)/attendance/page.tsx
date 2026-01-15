@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { RecordAttendance } from "@/components/attendance/record-attendance"
-import { AttendanceCalculator } from "@/components/attendance/attendance-calculator"
+import { AttendanceOnAbsenceCalculator } from "@/components/attendance/attendance-on-absence-calculator"
 import { TargetAttendanceCalculator } from "@/components/attendance/target-attendance-calculator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { getFromLocalStorage } from "@/lib/storage-utils"
@@ -69,9 +69,9 @@ export default function AttendancePage() {
               </TabsContent>
               
               <TabsContent value="calculator" className="mt-0 flex-1 min-h-0 overflow-hidden">
-                <div className="max-w-4xl mx-auto h-full">
+                <div className="max-w-7xl mx-auto h-full">
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
-                    <AttendanceCalculator />
+                    <AttendanceOnAbsenceCalculator />
                     <TargetAttendanceCalculator />
                   </div>
                 </div>

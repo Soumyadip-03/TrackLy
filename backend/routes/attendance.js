@@ -468,6 +468,7 @@ router.get('/stats', protect, async (req, res) => {
         _id: subject._id,
         name: subject.name,
         code: subject.code,
+        classType: subject.classType,
         percentage,
         attendedClasses: subject.attendedClasses,
         totalClasses: subject.totalClasses,

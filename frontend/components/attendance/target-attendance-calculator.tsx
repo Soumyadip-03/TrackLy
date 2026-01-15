@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { addDays, format } from "date-fns"
-import { Calculator, Calendar, ChevronRight, AlertCircle, Target } from "lucide-react"
+import { format, eachDayOfInterval, isSameDay } from "date-fns"
+import { Calculator, ChevronRight, AlertCircle, Target } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
@@ -11,209 +11,344 @@ import { Separator } from "@/components/ui/separator"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
-import { getFromLocalStorage } from "@/lib/storage-utils"
 import { Slider } from "@/components/ui/slider"
-import { calculateAttendanceExcludingHolidays, calculateSubjectAttendanceExcludingHolidays, getAllHolidays, generateAutoPresentRecords, isHoliday, isOffDay } from "@/lib/attendance-utils"
+import { fetchWithAuth } from "@/lib/api"
 
-interface Subject {
-  id: string;
-  name: string;
-  code?: string;
+interface AttendanceStats {
+  overall: {
+    percentage: number
+    attendedClasses: number
+    totalClasses: number
+  }
+  subjects: Array<{
+    _id: string
+    name: string
+    classType: string
+    percentage: number
+    attendedClasses: number
+    totalClasses: number
+  }>
 }
 
-interface AttendanceRecord {
-  id?: string;
-  date: string;
-  subjectId: string;
-  subjectName: string;
-  status: "present" | "absent";
-  notes?: string;
+interface ScheduleClass {
+  id: string
+  subjectId: string
+  day: string
+  subject: string
+  classType: string
+  startTime: string
+  endTime: string
+}
+
+interface Holiday {
+  date: string
+  reason?: string
+}
+
+interface CalculationResult {
+  daysNeeded: number
+  totalAttended: number
+  totalClasses: number
+  currentPercentage: number
+  finalPercentage: number
+  targetReached: boolean
+  currentAttended: number
+  currentTotal: number
 }
 
 export function TargetAttendanceCalculator() {
   const [calculatorType, setCalculatorType] = useState<"overall" | "per-subject">("overall")
   const [targetPercentage, setTargetPercentage] = useState<number>(75)
   const [selectedSubject, setSelectedSubject] = useState<string>("")
-  const [result, setResult] = useState<{ requiredClasses: number; currentPercentage: number; selectedSubjectName?: string } | null>(null)
+  const [result, setResult] = useState<CalculationResult | null>(null)
   const [calculating, setCalculating] = useState(false)
-  const [subjects, setSubjects] = useState<Subject[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([])
+  const [currentAttendance, setCurrentAttendance] = useState<AttendanceStats | null>(null)
+  const [schedule, setSchedule] = useState<ScheduleClass[]>([])
+  const [holidays, setHolidays] = useState<Holiday[]>([])
+  const [offDays, setOffDays] = useState<string[]>([])
+  const [academicEndDate, setAcademicEndDate] = useState<Date | null>(null)
   
-  // Load subjects and attendance records from localStorage
   useEffect(() => {
-    const loadData = () => {
-      const savedSubjects = getFromLocalStorage<Subject[]>('subjects', []);
-      const savedAttendance = getFromLocalStorage<AttendanceRecord[]>('attendance_records', []);
-      
-      setSubjects(savedSubjects);
-      setAttendanceRecords(savedAttendance);
-      setIsLoading(false);
-      
-      // Set first subject as default if available
-      if (savedSubjects.length > 0) {
-        setSelectedSubject(savedSubjects[0].id);
+    fetchData()
+  }, [])
+
+  const fetchData = async () => {
+    try {
+      const [statsRes, scheduleRes, holidaysRes] = await Promise.all([
+        fetchWithAuth("/attendance/stats"),
+        fetchWithAuth("/schedule/current"),
+        fetchWithAuth("/holidays")
+      ])
+
+      const statsData = await statsRes.json()
+      const scheduleData = await scheduleRes.json()
+      const holidaysData = await holidaysRes.json()
+
+      if (statsData.success) {
+        setCurrentAttendance(statsData.data)
       }
-    };
-    
-    loadData();
-  }, []);
+
+      if (scheduleData.success && scheduleData.data) {
+        setSchedule(scheduleData.data.schedule?.classes || [])
+        setOffDays(scheduleData.data.schedule?.offDays || [])
+        if (scheduleData.data.endDate) {
+          setAcademicEndDate(new Date(scheduleData.data.endDate))
+        }
+      }
+
+      if (holidaysData.success) {
+        setHolidays(holidaysData.data || [])
+      }
+
+      setIsLoading(false)
+    } catch (error) {
+      console.error("Error fetching data:", error)
+      setIsLoading(false)
+    }
+  }
 
   const handleCalculate = () => {
-    // Show calculating state
     setCalculating(true)
-
-    // Set a short timeout to simulate processing
     setTimeout(() => {
       if (calculatorType === "overall") {
-        // Calculate overall target
-        calculateOverallTarget(targetPercentage);
+        calculateOverallTarget(targetPercentage)
       } else {
-        // Calculate subject-specific target
-        calculateSubjectTarget(selectedSubject, targetPercentage);
+        calculateSubjectTarget(selectedSubject, targetPercentage)
       }
-
       setCalculating(false)
     }, 800)
   }
 
-  // Calculate how many consecutive classes need to be attended to reach target percentage overall
-  const calculateOverallTarget = (target: number) => {
-    // Get current attendance data
-    const currentAttendance = calculateCurrentAttendance();
-    
-    // Calculate overall current statistics
-    let totalPresent = 0;
-    let totalClasses = 0;
-    
-    Object.values(currentAttendance).forEach(data => {
-      totalPresent += data.present;
-      totalClasses += data.total;
-    });
-    
-    // Calculate current percentage
-    const currentPercentage = totalClasses > 0 ? (totalPresent / totalClasses) * 100 : 100;
-    
-    // If we've already reached the target
+  const isHolidayDate = (date: Date): boolean => {
+    return holidays.some(h => {
+      const holidayDate = new Date(h.date)
+      return holidayDate.getDate() === date.getDate() &&
+        holidayDate.getMonth() === date.getMonth() &&
+        holidayDate.getFullYear() === date.getFullYear()
+    })
+  }
+
+  const isOffDay = (date: Date): boolean => {
+    const dayName = format(date, "EEEE")
+    return offDays.includes(dayName)
+  }
+
+  const getClassesForDay = (date: Date): number => {
+    const dayName = format(date, "EEEE")
+    return schedule.filter(cls => cls.day === dayName).length
+  }
+
+  const checkTodayAttendanceUploaded = async (): Promise<boolean> => {
+    try {
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const todayStr = format(today, "yyyy-MM-dd")
+
+      const scheduledCount = getClassesForDay(today)
+      if (scheduledCount === 0) return false
+
+      const response = await fetchWithAuth(`/attendance/range?startDate=${todayStr}&endDate=${todayStr}`)
+      const data = await response.json()
+
+      if (data.success) {
+        const uploadedCount = data.data?.length || 0
+        return uploadedCount >= scheduledCount
+      }
+      return false
+    } catch (error) {
+      console.error("Error checking today's attendance:", error)
+      return false
+    }
+  }
+
+  const calculateOverallTarget = async (target: number) => {
+    if (!currentAttendance || !academicEndDate) return
+
+    const currentAttended = currentAttendance.overall.attendedClasses
+    const currentTotal = currentAttendance.overall.totalClasses
+    const currentPercentage = currentAttendance.overall.percentage
+
     if (currentPercentage >= target) {
       setResult({
-        requiredClasses: 0,
-        currentPercentage: Math.round(currentPercentage)
-      });
-      return;
+        daysNeeded: 0,
+        totalAttended: 0,
+        totalClasses: 0,
+        currentPercentage,
+        finalPercentage: currentPercentage,
+        targetReached: true,
+        currentAttended,
+        currentTotal
+      })
+      return
     }
-    
-    // Calculate how many consecutive present classes needed to reach target percentage
-    // Formula: (target_percent * (total_classes + x) - total_present) / 100 = x
-    // Solving for x: x = (target_percent * total_classes - 100 * total_present) / (100 - target_percent)
-    
-    const requiredClasses = Math.ceil((target * totalClasses - 100 * totalPresent) / (100 - target));
-    
+
+    const isTodayUploaded = await checkTodayAttendanceUploaded()
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const startDate = isTodayUploaded ? new Date(today.getTime() + 86400000) : today
+
+    const allDates = eachDayOfInterval({ start: startDate, end: academicEndDate })
+    const validDays = allDates.filter(date => !isHolidayDate(date) && !isOffDay(date))
+
+    let tempAttended = currentAttended
+    let tempTotal = currentTotal
+    let daysCount = 0
+    let totalClassesAdded = 0
+    let totalAttendedAdded = 0
+
+    for (const day of validDays) {
+      const classCount = getClassesForDay(day)
+      if (classCount === 0) continue
+
+      tempTotal += classCount
+      totalClassesAdded += classCount
+
+      const needed = Math.ceil((target / 100) * tempTotal - tempAttended)
+      const toAttend = Math.min(needed, classCount)
+
+      tempAttended += toAttend
+      totalAttendedAdded += toAttend
+      daysCount += 1
+
+      const newPercentage = (tempAttended / tempTotal) * 100
+
+      if (newPercentage >= target) {
+        setResult({
+          daysNeeded: daysCount,
+          totalAttended: totalAttendedAdded,
+          totalClasses: totalClassesAdded,
+          currentPercentage,
+          finalPercentage: Math.round(newPercentage * 10) / 10,
+          targetReached: true,
+          currentAttended,
+          currentTotal
+        })
+        return
+      }
+    }
+
     setResult({
-      requiredClasses: requiredClasses,
-      currentPercentage: Math.round(currentPercentage)
-    });
+      daysNeeded: daysCount,
+      totalAttended: totalAttendedAdded,
+      totalClasses: totalClassesAdded,
+      currentPercentage,
+      finalPercentage: Math.round((tempAttended / tempTotal) * 1000) / 10,
+      targetReached: false,
+      currentAttended,
+      currentTotal
+    })
   }
 
-  // Calculate how many consecutive classes need to be attended for a specific subject
-  const calculateSubjectTarget = (subjectId: string, target: number) => {
-    // Get current attendance data
-    const currentAttendance = calculateCurrentAttendance();
-    
-    // Get the selected subject
-    const subject = subjects.find(s => s.id === subjectId);
-    
-    if (!subject) {
-      return;
-    }
-    
-    // Get subject's current attendance data
-    const subjectData = currentAttendance[subjectId] || { present: 0, absent: 0, total: 0 };
-    
-    // Calculate current percentage
-    const currentPercentage = subjectData.total > 0 ? (subjectData.present / subjectData.total) * 100 : 100;
-    
-    // If we've already reached the target
+  const calculateSubjectTarget = async (subjectId: string, target: number) => {
+    if (!currentAttendance || !academicEndDate) return
+
+    const subject = currentAttendance.subjects.find(s => s._id === subjectId)
+    if (!subject) return
+
+    const currentAttended = subject.attendedClasses
+    const currentTotal = subject.totalClasses
+    const currentPercentage = subject.percentage
+
     if (currentPercentage >= target) {
       setResult({
-        requiredClasses: 0,
-        currentPercentage: Math.round(currentPercentage),
-        selectedSubjectName: subject.name
-      });
-      return;
+        daysNeeded: 0,
+        totalAttended: 0,
+        totalClasses: 0,
+        currentPercentage,
+        finalPercentage: currentPercentage,
+        targetReached: true,
+        currentAttended,
+        currentTotal
+      })
+      return
     }
-    
-    // Calculate how many consecutive present classes needed to reach target percentage
-    // Same formula as above but for specific subject
-    const requiredClasses = Math.ceil((target * subjectData.total - 100 * subjectData.present) / (100 - target));
-    
+
+    const isTodayUploaded = await checkTodayAttendanceUploaded()
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const startDate = isTodayUploaded ? new Date(today.getTime() + 86400000) : today
+
+    const allDates = eachDayOfInterval({ start: startDate, end: academicEndDate })
+    const validDays = allDates.filter(date => !isHolidayDate(date) && !isOffDay(date))
+
+    let tempAttended = currentAttended
+    let tempTotal = currentTotal
+    let daysCount = 0
+    let totalClassesAdded = 0
+    let totalAttendedAdded = 0
+
+    for (const day of validDays) {
+      const dayName = format(day, "EEEE")
+      const subjectClasses = schedule.filter(cls => cls.day === dayName && cls.subject === subject.name).length
+      
+      if (subjectClasses === 0) continue
+
+      tempTotal += subjectClasses
+      totalClassesAdded += subjectClasses
+
+      const needed = Math.ceil((target / 100) * tempTotal - tempAttended)
+      const toAttend = Math.min(needed, subjectClasses)
+
+      tempAttended += toAttend
+      totalAttendedAdded += toAttend
+      daysCount += 1
+
+      const newPercentage = (tempAttended / tempTotal) * 100
+
+      if (newPercentage >= target) {
+        setResult({
+          daysNeeded: daysCount,
+          totalAttended: totalAttendedAdded,
+          totalClasses: totalClassesAdded,
+          currentPercentage,
+          finalPercentage: Math.round(newPercentage * 10) / 10,
+          targetReached: true,
+          currentAttended,
+          currentTotal
+        })
+        return
+      }
+    }
+
     setResult({
-      requiredClasses: requiredClasses,
-      currentPercentage: Math.round(currentPercentage),
-      selectedSubjectName: subject.name
-    });
+      daysNeeded: daysCount,
+      totalAttended: totalAttendedAdded,
+      totalClasses: totalClassesAdded,
+      currentPercentage,
+      finalPercentage: Math.round((tempAttended / tempTotal) * 1000) / 10,
+      targetReached: false,
+      currentAttended,
+      currentTotal
+    })
   }
 
-  // Calculate current attendance from attendance records with auto-present functionality
-  const calculateCurrentAttendance = () => {
-    const attendance: Record<string, { present: number; absent: number; total: number }> = {};
-    
-    // Get attendance records with auto-present for past days
-    const allRecords = generateAutoPresentRecords();
-    
-    // Process attendance records to get counts (excluding holidays and off days)
-    allRecords.forEach(record => {
-      // Skip records for dates that are marked as holidays or off days
-      if (isHoliday(record.date) || isOffDay(record.date)) {
-        return;
-      }
-      
-      if (!attendance[record.subjectId]) {
-        attendance[record.subjectId] = { present: 0, absent: 0, total: 0 };
-      }
-      
-      if (record.status === 'present') {
-        attendance[record.subjectId].present += 1;
-      } else {
-        attendance[record.subjectId].absent += 1;
-      }
-      
-      attendance[record.subjectId].total += 1;
-    });
-    
-    return attendance;
-  }
 
-  // Loading state
+
   if (isLoading) {
     return (
-      <Card>
-        <CardHeader className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent">
-          <CardTitle className="flex items-center">
-            <Target className="mr-2 h-5 w-5 text-primary" />
-            <span className="bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-              Target Attendance Calculator
-            </span>
+      <Card className="overflow-hidden flex flex-col h-full">
+        <CardHeader className="flex-shrink-0 py-3">
+          <CardTitle className="text-xl flex items-center whitespace-nowrap">
+            <Target className="mr-2 h-5 w-5" />
+            Target Attendance Calculator
           </CardTitle>
-          <CardDescription>Loading your attendance data...</CardDescription>
+          <CardDescription>Loading...</CardDescription>
         </CardHeader>
-        <CardContent className="flex justify-center items-center py-8">
+        <CardContent className="flex-1 overflow-hidden flex items-center justify-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
         </CardContent>
       </Card>
-    );
+    )
   }
 
-  // No subjects found
-  if (subjects.length === 0) {
+  if (!currentAttendance || currentAttendance.subjects.length === 0) {
     return (
-      <Card>
-        <CardHeader className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent">
-          <CardTitle className="flex items-center">
-            <Target className="mr-2 h-5 w-5 text-primary" />
-            <span className="bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-              Target Attendance Calculator
-            </span>
+      <Card className="overflow-hidden flex flex-col h-full">
+        <CardHeader className="flex-shrink-0 py-3">
+          <CardTitle className="text-xl flex items-center whitespace-nowrap">
+            <Target className="mr-2 h-5 w-5" />
+            Target Attendance Calculator
           </CardTitle>
           <CardDescription>Calculate classes needed to reach your target attendance</CardDescription>
         </CardHeader>
@@ -221,35 +356,23 @@ export function TargetAttendanceCalculator() {
           <div className="text-center py-8">
             <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
             <p className="text-sm text-muted-foreground">No subjects found</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Please add subjects in your profile settings
-            </p>
-            <Button 
-              className="mt-4"
-              variant="outline"
-              onClick={() => window.location.href = '/settings/profile'}
-            >
-              Go to Profile Settings
-            </Button>
           </div>
         </CardContent>
       </Card>
-    );
+    )
   }
 
   return (
-    <Card className="overflow-hidden">
-      <CardHeader className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent">
-        <CardTitle className="flex items-center">
-          <Target className="mr-2 h-5 w-5 text-primary" />
-          <span className="bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-            Target Attendance Calculator
-          </span>
+    <Card className="overflow-hidden flex flex-col h-full">
+      <CardHeader className="flex-shrink-0 py-3">
+        <CardTitle className="text-xl flex items-center whitespace-nowrap">
+          <Target className="mr-2 h-5 w-5" />
+          Target Attendance Calculator
         </CardTitle>
         <CardDescription>Calculate classes needed to reach your target attendance</CardDescription>
       </CardHeader>
       <CardContent className="p-0">
-        <Tabs defaultValue="overall" onValueChange={(value) => setCalculatorType(value as any)} className="w-full">
+        <Tabs defaultValue="overall" onValueChange={(value) => { setCalculatorType(value as any); setResult(null); }} className="w-full">
           <TabsList className="grid w-full grid-cols-2 rounded-none">
             <TabsTrigger
               value="overall"
@@ -294,14 +417,15 @@ export function TargetAttendanceCalculator() {
               </div>
             </div>
 
-            <Alert className="bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800">
-              <AlertTitle className="text-amber-800 dark:text-amber-300 flex items-center gap-2">
-                <Target className="h-4 w-4" />
-                How it works
+            <Alert className="border-2 border-amber-600/50 rounded-lg bg-gradient-to-br from-amber-950/40 to-amber-900/20">
+              <AlertTitle className="text-amber-500 flex items-center gap-2">
+                <div className="w-5 h-5 rounded-full border-2 border-amber-500 flex items-center justify-center">
+                  <span className="text-amber-500 text-xs font-bold">i</span>
+                </div>
+                <span className="text-base font-semibold">How it works</span>
               </AlertTitle>
-              <AlertDescription className="text-amber-700 dark:text-amber-400">
-                Set your target attendance percentage. The calculator will show how many consecutive classes
-                you need to attend to reach this target based on your current attendance record.
+              <AlertDescription className="text-xs text-amber-200/90 leading-relaxed mt-2">
+                Set your target attendance percentage. The calculator will show how many consecutive days you need to attend to reach this target based on your current attendance record.
               </AlertDescription>
             </Alert>
 
@@ -335,9 +459,9 @@ export function TargetAttendanceCalculator() {
                 onChange={(e) => setSelectedSubject(e.target.value)}
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
-                {subjects.map((subject) => (
-                  <option key={subject.id} value={subject.id}>
-                    {subject.name} {subject.code ? `(${subject.code})` : ""}
+                {currentAttendance.subjects.map((subject) => (
+                  <option key={subject._id} value={subject._id}>
+                    {subject.name} ({subject.classType})
                   </option>
                 ))}
               </select>
@@ -371,14 +495,15 @@ export function TargetAttendanceCalculator() {
               </div>
             </div>
 
-            <Alert className="bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800">
-              <AlertTitle className="text-amber-800 dark:text-amber-300 flex items-center gap-2">
-                <Target className="h-4 w-4" />
-                How it works
+            <Alert className="border-2 border-amber-600/50 rounded-lg bg-gradient-to-br from-amber-950/40 to-amber-900/20">
+              <AlertTitle className="text-amber-500 flex items-center gap-2">
+                <div className="w-5 h-5 rounded-full border-2 border-amber-500 flex items-center justify-center">
+                  <span className="text-amber-500 text-xs font-bold">i</span>
+                </div>
+                <span className="text-base font-semibold">How it works</span>
               </AlertTitle>
-              <AlertDescription className="text-amber-700 dark:text-amber-400">
-                Select a subject and set your target attendance percentage. The calculator will show how many consecutive
-                classes you need to attend for this specific subject to reach your target.
+              <AlertDescription className="text-xs text-amber-200/90 leading-relaxed mt-2">
+                Select a subject and set your target attendance percentage. The calculator will show how many consecutive days you need to attend for this specific subject to reach your target.
               </AlertDescription>
             </Alert>
 
@@ -409,54 +534,39 @@ export function TargetAttendanceCalculator() {
               <Alert className="border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30">
                 <AlertTitle className="text-blue-800 dark:text-blue-300 flex items-center gap-2">
                   <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
-                  Calculation Result
+                  {result.daysNeeded === 0 ? "🎉 Target Already Achieved!" : result.targetReached ? "✅ Target Achievable!" : "⚠️ Target Not Achievable"}
                 </AlertTitle>
                 <AlertDescription>
                   <div className="mt-2 space-y-3">
-                    <div className="flex flex-col">
-                      <span className="text-sm font-medium text-muted-foreground">
-                        {result.selectedSubjectName 
-                          ? `Current Attendance for ${result.selectedSubjectName}` 
-                          : "Current Overall Attendance"}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">{result.currentPercentage}%</span>
-                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                        <div className="w-full max-w-xs bg-muted rounded-full h-2.5 overflow-hidden">
-                          <div
-                            className={cn(
-                              "h-full rounded-full transition-all duration-1000 ease-out",
-                              result.currentPercentage > 90
-                                ? "bg-green-500"
-                                : result.currentPercentage > 75
-                                  ? "bg-amber-500"
-                                  : "bg-red-500",
-                            )}
-                            style={{ width: `${result.currentPercentage}%` }}
-                          />
-                        </div>
+                    {result.daysNeeded === 0 ? (
+                      <div className="bg-green-100 dark:bg-green-900/20 rounded-lg p-4">
+                        <p className="text-green-700 dark:text-green-400 mt-2">
+                          Your current attendance of {result.currentPercentage}% already meets your target of {targetPercentage}%.
+                        </p>
                       </div>
-                    </div>
-                    
-                    <div className="bg-blue-100 dark:bg-blue-900/20 rounded-lg p-4 mt-3">
-                      <h4 className="text-xl font-semibold text-blue-800 dark:text-blue-300 flex items-center gap-2">
-                        <Target className="h-5 w-5" />
-                        {result.requiredClasses === 0 ? (
-                          <span>Target already achieved!</span>
-                        ) : (
-                          <span>You need to attend {result.requiredClasses} more classes</span>
+                    ) : (
+                      <>
+                        <div className="bg-blue-100 dark:bg-blue-900/20 rounded-lg p-4">
+                          <h4 className="text-lg font-semibold text-blue-800 dark:text-blue-300 flex items-center gap-2">
+                            <Target className="h-5 w-5" />
+                            You need to attend {result.daysNeeded} consecutive days
+                          </h4>
+                          <ul className="text-blue-700 dark:text-blue-400 mt-2 space-y-1 text-sm">
+                            <li>• Attend {result.totalAttended} classes out of {result.totalClasses} total classes</li>
+                            <li>• Current: {result.currentPercentage}% ({result.currentAttended}/{result.currentTotal})</li>
+                            <li>• After: {result.finalPercentage}% ({result.currentAttended + result.totalAttended}/{result.currentTotal + result.totalClasses})</li>
+                            <li>• Target: {targetPercentage}%</li>
+                          </ul>
+                        </div>
+                        {!result.targetReached && (
+                          <div className="bg-amber-100 dark:bg-amber-900/20 rounded-lg p-3">
+                            <p className="text-amber-800 dark:text-amber-300 text-sm">
+                              Target not achievable within academic period. Showing maximum possible attendance.
+                            </p>
+                          </div>
                         )}
-                      </h4>
-                      <p className="text-blue-700 dark:text-blue-400 mt-2">
-                        {result.requiredClasses === 0 ? (
-                          `Your current attendance of ${result.currentPercentage}% already meets your target of ${targetPercentage}%.`
-                        ) : (
-                          `To reach your target attendance of ${targetPercentage}%, 
-                          you need to attend ${result.requiredClasses} consecutive classes 
-                          ${result.selectedSubjectName ? `for ${result.selectedSubjectName}` : "across all subjects"}.`
-                        )}
-                      </p>
-                    </div>
+                      </>
+                    )}
                   </div>
                 </AlertDescription>
               </Alert>
